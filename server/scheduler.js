@@ -1,5 +1,6 @@
 import cron from 'node-cron'
 import { generateDueNotifications } from './notificationEngine.js'
+import { dispatchDueNotifications } from './notificationSender.js'
 
 function dateInTimezone(date, timezone) {
   const parts = new Intl.DateTimeFormat('en', {
@@ -21,6 +22,10 @@ export function startDailyScheduler(getDatabase) {
     try {
       const result = await generateDueNotifications(getDatabase(), dateInTimezone(new Date(), timezone))
       console.info(`Motor de avisos: ${result.created} pendientes nuevos; ${result.evaluated} clientes evaluados.`)
+      const dispatch = await dispatchDueNotifications(getDatabase(), dateInTimezone(new Date(), timezone))
+      if (dispatch.enabled) {
+        console.info(`Envío automático de avisos: ${dispatch.accepted} aceptados; ${dispatch.failed} fallidos; ${dispatch.attempted} procesados.`)
+      }
     } catch (error) {
       console.error('No se pudo ejecutar el motor de avisos:', error.code || error.message)
     }

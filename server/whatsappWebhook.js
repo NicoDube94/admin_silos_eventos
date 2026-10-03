@@ -152,6 +152,14 @@ async function processMessageStatus(status, database) {
       href: metaError.href,
     } : null,
   })
+  if (status.status === 'failed') {
+    await database.execute(
+      `UPDATE historial_notificaciones
+       SET estado = 'fallido', detalle_error = ?
+       WHERE whatsapp_message_id = ?`,
+      [JSON.stringify(metaError || {}), status.id],
+    )
+  }
 
   return {
     processed: true,

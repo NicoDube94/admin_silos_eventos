@@ -7,8 +7,10 @@ import { handleWhatsAppWebhook, verifyWebhookSignature } from './whatsappWebhook
 
 function createDatabase() {
   const statusRecords = []
+  const failedHistoryRecords = []
   return {
     statusRecords,
+    failedHistoryRecords,
     async execute(query, parameters) {
       if (query.startsWith('SELECT id, telefono_whatsapp')) {
         return [[{ id: 8, telefono_whatsapp: '+54 9 11 1234-5678', nombre_tutor: 'Ana', nombre_cumpleanero: 'Sofia' }]]
@@ -18,6 +20,10 @@ function createDatabase() {
       }
       if (query.startsWith('INSERT INTO whatsapp_message_statuses')) {
         statusRecords.push(parameters)
+        return [{ affectedRows: 1 }]
+      }
+      if (query.includes('UPDATE historial_notificaciones')) {
+        failedHistoryRecords.push(parameters)
         return [{ affectedRows: 1 }]
       }
       throw new Error(`Consulta inesperada: ${query}`)
@@ -106,6 +112,16 @@ test('persists WhatsApp delivery statuses and Meta failure details', async () =>
     'Message failed',
     'Recipient is not available on WhatsApp',
     'https://example.test/meta-error',
+  ]])
+  assert.deepEqual(database.failedHistoryRecords, [[
+    JSON.stringify({
+      code: 131047,
+      title: 'Re-engagement message',
+      message: 'Message failed',
+      error_data: { details: 'Recipient is not available on WhatsApp' },
+      href: 'https://example.test/meta-error',
+    }),
+    'wamid.failed',
   ]])
 })
 
