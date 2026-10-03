@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: silos-eventos
+    runtime: node
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "4000"
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL
+        value: "true"
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_TO
+        sync: false
+      - key: PLANTILLA_WHATSAPP
+        value: primer_aviso_cumple
+      - key: WHATSAPP_TEMPLATE_LANGUAGE
+        value: es_AR
+      - key: WHATSAPP_API_VERSION
+        value: v26.0
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: NOTIFICATION_CRON
+        value: 0 9 * * *
+      - key: NOTIFICATION_TIMEZONE
+        value: America/Argentina/Buenos_Aires

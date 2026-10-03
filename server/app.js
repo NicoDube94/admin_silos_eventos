@@ -1,4 +1,7 @@
 import express from 'express'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { getPool, isDatabaseConfigured } from './db.js'
 import { ApiError, parseId, validateClient, validateSettings, validateTemplate, validateTheme } from './validation.js'
 import { sendWhatsAppTemplate, sendWhatsAppText } from './whatsapp.js'
@@ -6,6 +9,8 @@ import { handleWhatsAppWebhook, verifyWebhookSignature } from './whatsappWebhook
 import { deleteTemplate, saveTemplate as saveTemplateRecord, setTemplateActive } from './templateService.js'
 
 const app = express()
+const frontendDirectory = fileURLToPath(new URL('../dist/', import.meta.url))
+const frontendIndex = join(frontendDirectory, 'index.html')
 const asyncRoute = (handler) => (request, response, next) => {
   Promise.resolve(handler(request, response, next)).catch(next)
 }
@@ -331,6 +336,17 @@ app.delete('/api/templates/:id', asyncRoute(async (request, response) => {
   const id = parseId(request.params.id)
   response.json(await deleteTemplate(database, id))
 }))
+
+app.use('/api', (_request, _response, next) => next(new ApiError(404, 'No se encontró el recurso solicitado.')))
+
+if (existsSync(frontendIndex)) {
+  app.use(express.static(frontendDirectory))
+  app.get('/{*path}', (_request, response, next) => {
+    response.sendFile(frontendIndex, (error) => {
+      if (error) next(error)
+    })
+  })
+}
 
 app.use((_request, _response, next) => next(new ApiError(404, 'No se encontró el recurso solicitado.')))
 

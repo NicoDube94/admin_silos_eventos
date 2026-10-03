@@ -13,13 +13,14 @@ Requisitos: Node.js 22.12 o posterior y una base TiDB/MySQL accesible.
 
 El comando inicia la API en el puerto 3001 y Vite en el 5173. Vite reenvía `/api` a la API local. También puedes ejecutar `npm run api` y `npm run dev` en terminales separadas.
 
-En bases creadas antes de estas funciones, aplica las migraciones SQL numeradas una sola vez y en orden antes de iniciar la API actualizada. La migración `004_single_active_template_per_notice.sql` conserva activa la plantilla de ID más alto de cada aviso y desactiva las anteriores; `005_soft_delete_templates.sql` agrega la baja lógica de plantillas para conservar referencias históricas. Aplícalas antes de usar la nueva API. Después, la base garantiza que solo haya una plantilla activa por aviso. Si se crea, edita o activa otra para el mismo aviso, la API desactiva la anterior y el panel informa cuál quedó activa y cuál se desactivó. El motor genera avisos pendientes el día configurado, al iniciar la API y cada día a las 09:00 de `America/Argentina/Buenos_Aires`. Puedes cambiar el horario con `NOTIFICATION_CRON` y `NOTIFICATION_TIMEZONE` en `.env`. El tema elegido se guarda en la base y se comparte al abrir la aplicación desde otro navegador; si la API está desconectada, queda guardado localmente. Las plantillas se asignan al aviso 1, 2 o 3 y el icono de notificaciones muestra solo avisos enviados junto con una copia del mensaje utilizado.
+En bases creadas antes de estas funciones, aplica las migraciones SQL numeradas una sola vez y en orden antes de iniciar la API actualizada. La migración `004_single_active_template_per_notice.sql` conserva activa la plantilla de ID más alto de cada aviso y desactiva las anteriores; `005_soft_delete_templates.sql` agrega la baja lógica de plantillas para conservar referencias históricas; `006_whatsapp_message_statuses.sql` guarda los estados y errores reportados por Meta. Aplícalas antes de usar la nueva API. Después, la base garantiza que solo haya una plantilla activa por aviso. Si se crea, edita o activa otra para el mismo aviso, la API desactiva la anterior y el panel informa cuál quedó activa y cuál se desactivó. El motor genera avisos pendientes el día configurado, al iniciar la API y cada día a las 09:00 de `America/Argentina/Buenos_Aires`. Puedes cambiar el horario con `NOTIFICATION_CRON` y `NOTIFICATION_TIMEZONE` en `.env`. El tema elegido se guarda en la base y se comparte al abrir la aplicación desde otro navegador; si la API está desconectada, queda guardado localmente. Las plantillas se asignan al aviso 1, 2 o 3 y el icono de notificaciones muestra solo avisos enviados junto con una copia del mensaje utilizado.
 
 El dump no contiene clientes ni plantillas de ejemplo. Los archivos `src/mockData.json` y `src/mockSettings.json` solo se muestran como vista de demostración mientras la API está desconectada; no se insertan automáticamente en TiDB.
 
 ## API
 
 - `GET /api/health`: estado de conexión con la base.
+- `GET /api/whatsapp/statuses`: últimos 100 estados de mensajes recibidos de Meta, incluidos errores de entrega.
 - `GET /api/clients`: clientes activos y estado agregado de avisos.
 - `POST /api/clients` y `PUT /api/clients/:id`: alta y edición de clientes.
 - `PATCH /api/clients/:id/deactivate`: baja lógica (`activo = 0`); no hay borrado físico.
@@ -47,9 +48,15 @@ La plantilla debe estar aprobada en el locale configurado por `WHATSAPP_TEMPLATE
 
 ### Webhook de respuestas rápidas
 
-La URL de callback de la API es `/api/webhooks/whatsapp`. Meta necesita una URL pública HTTPS, por ejemplo `https://tu-dominio.example.com/api/webhooks/whatsapp`; `127.0.0.1` no es accesible desde Meta. Configura en `.env` dos valores propios y secretos: `WHATSAPP_WEBHOOK_VERIFY_TOKEN` y `WHATSAPP_APP_SECRET`.
+La URL de callback de la API es `/api/webhooks/whatsapp`. Meta necesita una URL pública HTTPS, por ejemplo `https://tu-servicio.onrender.com/api/webhooks/whatsapp`; `127.0.0.1` no es accesible desde Meta. En Render no necesitas ngrok. Configura en el servicio las variables `WHATSAPP_WEBHOOK_VERIFY_TOKEN` y `WHATSAPP_APP_SECRET` y en Meta utiliza el mismo token de verificación. Suscribe el campo `messages`; los cambios de entrega (`sent`, `delivered`, `read`, `failed`) llegan en ese webhook y quedan en `whatsapp_message_statuses`. Puedes consultarlos en `GET /api/whatsapp/statuses`.
 
 En Meta Developers, en el webhook de WhatsApp, usa esa URL y el mismo `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Suscribe el campo `messages` y completa la verificación. Cuando el cliente pulse `Quiero saber más`, la API busca la oferta activa llamada `aviso test`, reemplaza `{{nombre_tutor}}` y `{{nombre_cumpleanero}}`, y envía su cuerpo como texto libre dentro de la ventana de atención iniciada por el cliente. Al pulsar `No, Gracias`, responde: `Gracias por avisarnos. ¡Que tengas un hermoso día! Si cambias de opinión, puedes comunicarte al 2657287394.` Los eventos repetidos no se procesan dos veces.
+
+### Despliegue en Render
+
+El archivo `render.yaml` configura un único Web Service para servir el frontend compilado y la API en el mismo dominio. En Render, crea el servicio desde el Blueprint del repositorio y completa las variables marcadas como secretas con los valores de tu entorno. Render asigna `PORT`; no lo definas manualmente. Importa la base existente y aplica las migraciones que todavía no tenga antes de usar la app. Configura en Meta como callback `https://<dominio-render>/api/webhooks/whatsapp`, el mismo `WHATSAPP_WEBHOOK_VERIFY_TOKEN` del servicio y la suscripción al campo `messages`.
+
+El servicio API no incluye autenticación de administrador. Antes de usar datos reales en un servicio público, agrega autenticación o protege el acceso mediante un proxy de identidad.
 
 La API debe estar ejecutándose en el servidor que corresponde al dominio público. Para una prueba local se necesita un túnel HTTPS, por ejemplo Cloudflare Tunnel o ngrok; la URL resultante debe conservar el sufijo `/api/webhooks/whatsapp`.
 
@@ -70,4 +77,3 @@ npm run lint
 npm run build
 ```
 
-La API está limitada a `127.0.0.1` y no incluye autenticación. Antes de desplegarla en red, agrega autenticación, autorización y configuración segura de producción.
