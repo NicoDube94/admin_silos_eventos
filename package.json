@@ -1,0 +1,34 @@
+{
+  "name": "my-react-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "api": "node server/index.js",
+    "tunnel": "node server/tunnel.js",
+    "dev:full": "concurrently -k -n API,VITE \"npm:api\" \"npm:dev -- --host 127.0.0.1\"",
+    "build": "vite build",
+    "lint": "oxlint",
+    "test": "node --test server/api.test.js server/notificationSchedule.test.js server/notificationEngine.test.js server/validation.test.js server/whatsapp.test.js server/whatsappWebhook.test.js server/templateService.test.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "lucide-react": "^1.48.0",
+    "mysql2": "^3.24.4",
+    "node-cron": "^4.6.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@ngrok/ngrok": "^1.7.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "concurrently": "^10.0.5",
+    "oxlint": "^1.75.0",
+    "vite": "^8.2.0"
+  }
+}

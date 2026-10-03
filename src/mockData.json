@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "tutor": "Sofía Martínez",
+    "telefono": "+54 9 11 5555 0101",
+    "cumpleanero": "Mateo",
+    "fechaNacimiento": "2018-10-04",
+    "avisos": ["enviado", "enviado", "pendiente"],
+    "activo": true
+  },
+  {
+    "id": 2,
+    "tutor": "Valentina Ríos",
+    "telefono": "+54 9 11 5555 0102",
+    "cumpleanero": "Emma",
+    "fechaNacimiento": "2019-10-09",
+    "avisos": ["enviado", "pendiente", "pendiente"],
+    "activo": true
+  },
+  {
+    "id": 3,
+    "tutor": "Martín Acosta",
+    "telefono": "+54 9 11 5555 0103",
+    "cumpleanero": "Benjamín",
+    "fechaNacimiento": "2017-10-16",
+    "avisos": ["enviado", "enviado", "enviado"],
+    "activo": true
+  },
+  {
+    "id": 4,
+    "tutor": "Camila Fernández",
+    "telefono": "+54 9 11 5555 0104",
+    "cumpleanero": "Olivia",
+    "fechaNacimiento": "2020-11-02",
+    "avisos": ["pendiente", "pendiente", "pendiente"],
+    "activo": true
+  },
+  {
+    "id": 5,
+    "tutor": "Diego Herrera",
+    "telefono": "+54 9 11 5555 0105",
+    "cumpleanero": "Joaquín",
+    "fechaNacimiento": "2016-11-11",
+    "avisos": ["enviado", "enviado", "pendiente"],
+    "activo": true
+  },
+  {
+    "id": 6,
+    "tutor": "Luciana Torres",
+    "telefono": "+54 9 11 5555 0106",
+    "cumpleanero": "Mía",
+    "fechaNacimiento": "2019-12-03",
+    "avisos": ["enviado", "pendiente", "pendiente"],
+    "activo": true
+  },
+  {
+    "id": 7,
+    "tutor": "Andrés Molina",
+    "telefono": "+54 9 11 5555 0107",
+    "cumpleanero": "Felipe",
+    "fechaNacimiento": "2018-12-18",
+    "avisos": ["enviado", "enviado", "enviado"],
+    "activo": true
+  },
+  {
+    "id": 8,
+    "tutor": "Julieta Castro",
+    "telefono": "+54 9 11 5555 0108",
+    "cumpleanero": "Catalina",
+    "fechaNacimiento": "2020-09-29",
+    "avisos": ["pendiente", "pendiente", "pendiente"],
+    "activo": true
+  }
+]

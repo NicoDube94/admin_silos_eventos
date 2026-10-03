@@ -1,0 +1,24 @@
+{
+  "configuracion": {
+    "diasAnticipacion": 60,
+    "telefonoAdmin": "+54 9 11 5555 0000",
+    "cantidadNotificaciones": 3,
+    "plazosDias": 15
+  },
+  "plantillas": [
+    {
+      "id": 1,
+      "nombreOferta": "Celebración anticipada",
+      "cuerpoMensaje": "Hola {{nombre_tutor}}, se acerca el cumpleaños de {{nombre_cumpleanero}}. Tenemos una propuesta especial para celebrarlo en Silos Eventos. ¿Te gustaría conocerla?",
+      "numeroAviso": 1,
+      "activa": true
+    },
+    {
+      "id": 2,
+      "nombreOferta": "Últimos lugares",
+      "cuerpoMensaje": "Hola {{nombre_tutor}}, todavía estás a tiempo de organizar el festejo de {{nombre_cumpleanero}}. Escribinos y te contamos las opciones disponibles.",
+      "numeroAviso": 2,
+      "activa": true
+    }
+  ]
+}
