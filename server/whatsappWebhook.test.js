@@ -5,20 +5,23 @@ import test from 'node:test'
 import app from './app.js'
 import { handleWhatsAppWebhook, verifyWebhookSignature } from './whatsappWebhook.js'
 
-function createDatabase() {
+function createDatabase(sentNotification = null) {
   const statusRecords = []
   const failedHistoryRecords = []
+  const notificationLookups = []
   return {
     statusRecords,
     failedHistoryRecords,
+    notificationLookups,
     async execute(query, parameters) {
+      if (query.startsWith('SELECT h.numero_notificacion')) {
+        notificationLookups.push(parameters)
+        return [sentNotification ? [sentNotification] : []]
+      }
       if (query.startsWith('SELECT id, telefono_whatsapp')) {
         return [[{ id: 8, telefono_whatsapp: '+54 9 11 1234-5678', nombre_tutor: 'Ana', nombre_cumpleanero: 'Sofia' }]]
       }
       if (query.includes('FROM whatsapp_manual_followups')) return [[]]
-      if (query.startsWith('SELECT nombre_oferta, cuerpo_mensaje')) {
-        return [[{ nombre_oferta: 'aviso test', cuerpo_mensaje: 'Hola {{nombre_tutor}}, {{nombre_cumpleanero}} tiene una oferta.' }]]
-      }
       if (query.startsWith('INSERT INTO whatsapp_message_statuses')) {
         statusRecords.push(parameters)
         return [{ affectedRows: 1 }]
@@ -127,25 +130,107 @@ test('persists WhatsApp delivery statuses and Meta failure details', async () =>
   ]])
 })
 
-test('sends only the “aviso test” system offer after “Quiero saber más”', async () => {
+test('sends the notice-specific offer and notifies the admin after “Quiero saber más”', async () => {
   const sent = []
+  const database = createDatabase({
+    numero_notificacion: 1,
+    fecha_envio_formateada: '05/10/2026',
+    nombre_tutor: 'Ana',
+    telefono_admin: '5492222222222',
+    cantidad_notificaciones: 2,
+    nombre_oferta: 'Celebración anticipada',
+    cuerpo_mensaje: 'Hola {{nombre_tutor}}, {{nombre_cumpleanero}} tiene una oferta.',
+  })
   const results = await handleWhatsAppWebhook(payload({
     id: 'message-yes',
     from: '5491112345678',
     type: 'button',
     button: { payload: 'quiero_saber_mas', text: 'Quiero saber más' },
-  }), createDatabase(), {
+    context: { id: 'wamid-notice-1' },
+  }), database, {
     sendText: async (to, message) => {
       sent.push({ to, message })
       return { messageId: 'reply-1' }
     },
   })
 
-  assert.deepEqual(results, [{ processed: true, action: 'offer_sent', clientId: 8, offerName: 'aviso test', messageId: 'reply-1' }])
+  assert.deepEqual(results, [{
+    processed: true,
+    action: 'offer_sent',
+    clientId: 8,
+    offerName: 'Celebración anticipada',
+    messageId: 'reply-1',
+    adminNotified: true,
+  }])
   assert.deepEqual(sent, [{
     to: '5491112345678',
     message: 'Hola Ana, Sofia tiene una oferta.',
+  }, {
+    to: '5492222222222',
+    message: 'Mensaje enviado a Ana con el aviso 1/2 con la promoción de Celebración anticipada. Fecha de envío: 05/10/2026',
   }])
+  assert.deepEqual(database.notificationLookups, [[8, 'wamid-notice-1', 'wamid-notice-1']])
+  assert.equal(database.statusRecords.at(-1)[0], 'reply-1')
+})
+
+test('recognizes a typed interest reply and uses the latest sent offer when no context is included', async () => {
+  const sent = []
+  const database = createDatabase({
+    numero_notificacion: 2,
+    fecha_envio_formateada: '06/10/2026',
+    nombre_tutor: 'Ana',
+    telefono_admin: '5492222222222',
+    cantidad_notificaciones: 2,
+    nombre_oferta: 'Últimos lugares',
+    cuerpo_mensaje: 'Hola {{nombre_tutor}}, promoción para {{nombre_cumpleanero}}.',
+  })
+  const results = await handleWhatsAppWebhook(payload({
+    id: 'message-typed-interest',
+    from: '5491112345678',
+    type: 'text',
+    text: { body: 'Quiero saber más' },
+  }), database, {
+    sendText: async (to, message) => {
+      sent.push({ to, message })
+      return { messageId: `reply-${sent.length}` }
+    },
+  })
+
+  assert.equal(results[0].adminNotified, true)
+  assert.deepEqual(sent, [{
+    to: '5491112345678',
+    message: 'Hola Ana, promoción para Sofia.',
+  }, {
+    to: '5492222222222',
+    message: 'Mensaje enviado a Ana con el aviso 2/2 con la promoción de Últimos lugares. Fecha de envío: 06/10/2026',
+  }])
+})
+
+test('does not notify admin for a generic affirmative reply', async () => {
+  const database = createDatabase({
+    numero_notificacion: 1,
+    fecha_envio_formateada: '05/10/2026',
+    nombre_tutor: 'Ana',
+    telefono_admin: '5492222222222',
+    cantidad_notificaciones: 2,
+    nombre_oferta: 'Celebración anticipada',
+    cuerpo_mensaje: 'Oferta para {{nombre_cumpleanero}}.',
+  })
+  const sent = []
+  const results = await handleWhatsAppWebhook(payload({
+    id: 'message-generic-yes',
+    from: '5491112345678',
+    type: 'button',
+    button: { payload: 'si', text: 'Sí' },
+  }), database, {
+    sendText: async (to, message) => {
+      sent.push({ to, message })
+      return { messageId: `reply-${sent.length}` }
+    },
+  })
+
+  assert.equal(results[0].adminNotified, false)
+  assert.deepEqual(sent, [{ to: '5491112345678', message: 'Oferta para Sofia.' }])
 })
 
 test('sends a polite goodbye and admin contact after “No, Gracias”, and ignores duplicates', async () => {

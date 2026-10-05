@@ -42,7 +42,3 @@ services:
         value: America/Argentina/Buenos_Aires
       - key: WHATSAPP_AUTOMATED_SENDING_ENABLED
         value: "true"
-      - key: WHATSAPP_AUTOMATED_SEND_DATE
-        value: "2026-10-04"
-      - key: WHATSAPP_AUTOMATED_CLIENT_IDS
-        value: "1,60001"

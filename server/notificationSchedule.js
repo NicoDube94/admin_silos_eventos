@@ -56,5 +56,5 @@ export function getDueNotifications(client, settings, today) {
       anioFestejo: birthdayYear,
       fechaProgramada: formatDate(scheduledDate),
     }
-  }).filter((notification) => notification.fechaProgramada === today)
+  }).filter((notification) => notification.fechaProgramada <= today)
 }

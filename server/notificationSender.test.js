@@ -6,8 +6,8 @@ function createDatabase() {
   const historyUpdates = []
   const statusRecords = []
   const notifications = [
-    { historial_id: 10, cliente_id: 1, nombre_tutor: 'Jazmin', telefono_whatsapp: '5491111111111', nombre_cumpleanero: 'Fatima', telefono_admin: '5492222222222' },
-    { historial_id: 11, cliente_id: 60001, nombre_tutor: 'Nicolas', telefono_whatsapp: '5493333333333', nombre_cumpleanero: 'Francisco', telefono_admin: '5492222222222' },
+    { historial_id: 10, cliente_id: 1, nombre_tutor: 'Jazmin', telefono_whatsapp: '5491111111111', nombre_cumpleanero: 'Fatima' },
+    { historial_id: 11, cliente_id: 60001, nombre_tutor: 'Nicolas', telefono_whatsapp: '5493333333333', nombre_cumpleanero: 'Francisco' },
   ]
 
   return {
@@ -28,13 +28,11 @@ function createDatabase() {
   }
 }
 
-test('dispatches only the selected clients on the configured test date and alerts the admin', async () => {
+test('dispatches all pending notifications due by today without sending the primary template to admin', async () => {
   const database = createDatabase()
   const sent = []
   const result = await dispatchDueNotifications(database, '2026-10-04', {
     enabled: true,
-    sendDate: '2026-10-04',
-    clientIds: [1, 60001],
     templateName: 'primer_aviso_cumple',
     language: 'es_AR',
     imageBuffer: Buffer.from('test-image'),
@@ -52,16 +50,15 @@ test('dispatches only the selected clients on the configured test date and alert
     failed: 0,
     outcomes: [
       { clientId: 1, status: 'accepted', messageId: 'wamid.1' },
-      { clientId: 60001, status: 'accepted', messageId: 'wamid.3' },
+      { clientId: 60001, status: 'accepted', messageId: 'wamid.2' },
     ],
   })
-  assert.equal(sent.length, 4)
-  assert.deepEqual(sent.map((message) => message.to), [
-    '5491111111111', '5492222222222', '5493333333333', '5492222222222',
-  ])
+  assert.equal(sent.length, 2)
+  assert.deepEqual(sent.map((message) => message.to), ['5491111111111', '5493333333333'])
   assert.ok(sent.every((message) => message.name === 'primer_aviso_cumple'))
-  assert.equal(database.statusRecords.length, 4)
+  assert.equal(database.statusRecords.length, 2)
   assert.equal(database.historyUpdates.filter(({ query }) => query.includes("estado = 'enviado'")).length, 2)
+  assert.ok(database.historyUpdates.some(({ query }) => /whatsapp_message_id = \?/.test(query)))
 })
 
 test('records a 131049 failure and continues with the next client', async () => {
@@ -75,8 +72,6 @@ test('records a 131049 failure and continues with the next client', async () => 
   try {
     result = await dispatchDueNotifications(database, '2026-10-04', {
       enabled: true,
-      sendDate: '2026-10-04',
-      clientIds: [1, 60001],
       templateName: 'primer_aviso_cumple',
       language: 'es_AR',
       imageBuffer: Buffer.from('test-image'),
@@ -104,15 +99,10 @@ test('records a 131049 failure and continues with the next client', async () => 
     failed: 1,
     outcomes: [
       { clientId: 1, status: 'failed', error: 'Healthy ecosystem engagement restriction' },
-      { clientId: 60001, status: 'accepted', messageId: 'wamid.success-2' },
+      { clientId: 60001, status: 'accepted', messageId: 'wamid.success-1' },
     ],
   })
-  assert.deepEqual(attemptedRecipients, [
-    '5491111111111',
-    '5492222222222',
-    '5493333333333',
-    '5492222222222',
-  ])
+  assert.deepEqual(attemptedRecipients, ['5491111111111', '5493333333333'])
   const failedUpdate = database.historyUpdates.find(({ query }) => query.includes("estado = 'fallido'"))
   assert.deepEqual(JSON.parse(failedUpdate.parameters[0]), {
     message: 'Healthy ecosystem engagement restriction',
@@ -120,12 +110,10 @@ test('records a 131049 failure and continues with the next client', async () => 
   })
 })
 
-test('does not dispatch outside the configured one-day window', async () => {
+test('does not dispatch when automated sending is disabled', async () => {
   const database = createDatabase()
   const result = await dispatchDueNotifications(database, '2026-10-03', {
-    enabled: true,
-    sendDate: '2026-10-04',
-    clientIds: [1, 60001],
+    enabled: false,
   })
 
   assert.deepEqual(result, { enabled: false, attempted: 0, accepted: 0, failed: 0 })

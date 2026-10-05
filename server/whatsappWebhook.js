@@ -3,6 +3,7 @@ import { sendWhatsAppText } from './whatsapp.js'
 import { recordWhatsAppStatus } from './whatsappStatus.js'
 
 const processedMessageIds = new Set()
+const processingMessageIds = new Set()
 const maxProcessedMessageIds = 1000
 
 function normalizePhoneNumber(value) {
@@ -10,13 +11,11 @@ function normalizePhoneNumber(value) {
 }
 
 function rememberMessage(messageId) {
-  if (!messageId) return true
-  if (processedMessageIds.has(messageId)) return false
+  if (!messageId) return
   processedMessageIds.add(messageId)
   if (processedMessageIds.size > maxProcessedMessageIds) {
     processedMessageIds.delete(processedMessageIds.values().next().value)
   }
-  return true
 }
 
 export function verifyWebhookSignature(rawBody, signature, appSecret = process.env.WHATSAPP_APP_SECRET) {
@@ -66,6 +65,11 @@ function isAffirmativeReply(reply) {
     || /\b(si|yes|aceptar|acepto|confirmar|confirmo)\b/.test(value)
 }
 
+function isInterestReply(message, reply) {
+  const text = message.type === 'text' ? message.text?.body : ''
+  return normalizeReply(`${getReplyText(reply)} ${text}`).includes('quiero saber mas')
+}
+
 function isNegativeReply(reply) {
   const value = getReplyText(reply)
   return value.includes('no gracias')
@@ -92,16 +96,44 @@ async function getClientByPhone(database, phoneNumber) {
   return clients.find((client) => normalizePhoneNumber(client.telefono_whatsapp) === normalizedPhone) || null
 }
 
-async function getAvisoTest(database) {
-  const [offers] = await database.execute(
-    `SELECT nombre_oferta, cuerpo_mensaje
-     FROM plantillas_mensajes
-    WHERE activa = 1 AND eliminada = 0 AND LOWER(TRIM(nombre_oferta)) = ?
-     ORDER BY id DESC
+async function getSentNotification(database, client, contextMessageId) {
+  const [notifications] = await database.execute(
+    `SELECT h.numero_notificacion, h.fecha_envio,
+      DATE_FORMAT(h.fecha_envio, '%d/%m/%Y') AS fecha_envio_formateada,
+      c.nombre_tutor, s.telefono_admin, s.cantidad_notificaciones,
+      COALESCE(oferta.nombre_oferta, CONCAT('Aviso ', h.numero_notificacion)) AS nombre_oferta,
+      oferta.cuerpo_mensaje
+     FROM historial_notificaciones h
+     JOIN clientes c ON c.id = h.cliente_id
+     LEFT JOIN configuracion_sistema s ON s.id = 1
+     LEFT JOIN plantillas_mensajes oferta ON oferta.id = h.plantilla_id
+     WHERE h.cliente_id = ? AND h.estado = 'enviado'
+       AND (? IS NULL OR h.whatsapp_message_id = ?)
+     ORDER BY h.fecha_envio DESC, h.id DESC
      LIMIT 1`,
-    ['aviso test'],
+    [client.id, contextMessageId || null, contextMessageId || null],
   )
-  return offers[0] || null
+  return notifications[0] || null
+}
+
+async function notifyAdminOfInterest(database, notification, sendText) {
+  if (!notification.telefono_admin) {
+    throw new Error('Falta configurar el teléfono del administrador para notificar el interés del cliente.')
+  }
+  if (!notification.fecha_envio_formateada) {
+    throw new Error('No se pudo obtener la fecha del aviso enviado para notificar al administrador.')
+  }
+  const noticeCount = Number(notification.cantidad_notificaciones) || notification.numero_notificacion
+  const message = `Mensaje enviado a ${notification.nombre_tutor} con el aviso ${notification.numero_notificacion}/${noticeCount} con la promoción de ${notification.nombre_oferta}. Fecha de envío: ${notification.fecha_envio_formateada}`
+  const result = await sendText(notification.telefono_admin, message)
+  if (!result.messageId) throw new Error('Meta aceptó el aviso al administrador sin devolver un identificador de mensaje.')
+  await recordWhatsAppStatus(database, {
+    messageId: result.messageId,
+    recipientId: notification.telefono_admin,
+    status: 'accepted',
+    source: 'cloud_api',
+    timestamp: new Date().toISOString(),
+  })
 }
 
 async function sendPendingManualFollowup(database, client, phoneNumber, sendText) {
@@ -150,7 +182,6 @@ async function sendPendingManualFollowup(database, client, phoneNumber, sendText
 }
 
 async function processIncomingMessage(message, database, sendText) {
-  if (!rememberMessage(message.id)) return { processed: false, reason: 'duplicate' }
   const reply = extractButtonReply(message)
   const phoneNumber = message.from
   const client = await getClientByPhone(database, phoneNumber)
@@ -173,7 +204,8 @@ async function processIncomingMessage(message, database, sendText) {
     if (followup) return followup
   }
 
-  if (!reply || !isAffirmativeReply(reply)) {
+  const interestReply = isInterestReply(message, reply)
+  if ((!reply || !isAffirmativeReply(reply)) && !interestReply) {
     return { processed: false, reason: 'unsupported_reply' }
   }
 
@@ -182,17 +214,42 @@ async function processIncomingMessage(message, database, sendText) {
     return { processed: true, action: 'unknown_client' }
   }
 
-  const offer = await getAvisoTest(database)
+  const sentNotification = await getSentNotification(database, client, message.context?.id)
+  const offer = sentNotification?.cuerpo_mensaje
+    ? {
+      nombre_oferta: sentNotification.nombre_oferta,
+      cuerpo_mensaje: sentNotification.cuerpo_mensaje,
+    }
+    : null
   const messageText = offer
     ? renderMessage(offer.cuerpo_mensaje, client)
     : 'Gracias por tu interés. En este momento no encontramos la oferta solicitada; pronto nos comunicaremos contigo.'
   const result = await sendText(phoneNumber, messageText)
+  if (interestReply && sentNotification && offer) {
+    await notifyAdminOfInterest(database, { ...sentNotification, nombre_tutor: client.nombre_tutor }, sendText)
+  }
   return {
     processed: true,
     action: offer ? 'offer_sent' : 'offer_not_found',
     clientId: client.id,
     offerName: offer?.nombre_oferta ?? null,
     messageId: result.messageId,
+    adminNotified: Boolean(interestReply && sentNotification && offer),
+  }
+}
+
+async function processIncomingMessageOnce(message, database, sendText) {
+  if (!message.id) return processIncomingMessage(message, database, sendText)
+  if (processedMessageIds.has(message.id) || processingMessageIds.has(message.id)) {
+    return { processed: false, reason: 'duplicate' }
+  }
+  processingMessageIds.add(message.id)
+  try {
+    const result = await processIncomingMessage(message, database, sendText)
+    rememberMessage(message.id)
+    return result
+  } finally {
+    processingMessageIds.delete(message.id)
   }
 }
 
@@ -245,7 +302,7 @@ export async function handleWhatsAppWebhook(payload, database, options = {}) {
   for (const entry of payload?.entry || []) {
     for (const change of entry.changes || []) {
       for (const message of change.value?.messages || []) {
-        results.push(await processIncomingMessage(message, database, sendText))
+        results.push(await processIncomingMessageOnce(message, database, sendText))
       }
       for (const status of change.value?.statuses || []) {
         results.push(await processMessageStatus(status, database))
