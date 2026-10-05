@@ -2,26 +2,64 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { applyMigrations } from './migrate.js'
 
-test('applies the checked-in idempotent manual follow-up migration', async () => {
-  const executed = []
-  await applyMigrations({
-    async query(sql) {
-      executed.push(sql)
-    },
-  })
+function createDatabase({ applied = [], schemaState = () => 0 } = {}) {
+  const recordedMigrations = new Set(applied)
+  const migrationStatements = []
 
-  assert.equal(executed.length, 1)
-  assert.match(executed[0], /CREATE TABLE IF NOT EXISTS whatsapp_manual_followups/)
-  assert.match(executed[0], /status_index/)
+  return {
+    migrationStatements,
+    recordedMigrations,
+    async query(sql, values = []) {
+      if (sql.includes('information_schema')) {
+        return [[{ count: schemaState(sql, values) }], []]
+      }
+      if (sql.startsWith('SELECT version FROM schema_migrations')) {
+        return [recordedMigrations.has(values[0]) ? [{ version: values[0] }] : [], []]
+      }
+      if (sql.startsWith('INSERT INTO schema_migrations')) {
+        recordedMigrations.add(values[0])
+        return [{ affectedRows: 1 }, []]
+      }
+      if (/^(ALTER TABLE|UPDATE|CREATE INDEX|CREATE TABLE IF NOT EXISTS whatsapp_)/.test(sql.trim())) {
+        migrationStatements.push(sql.trim())
+      }
+      return [[], []]
+    },
+  }
+}
+
+test('applies all numbered migrations in order and skips them on subsequent runs', async () => {
+  const database = createDatabase()
+
+  await applyMigrations(database)
+
+  assert.equal(database.recordedMigrations.size, 8)
+  assert.equal(database.migrationStatements.length, 21)
+  assert.match(database.migrationStatements[0], /^ALTER TABLE historial_notificaciones/)
+  assert.match(database.migrationStatements.at(-1), /^CREATE TABLE IF NOT EXISTS whatsapp_manual_followups/)
+
+  const firstRunStatementCount = database.migrationStatements.length
+  await applyMigrations(database)
+  assert.equal(database.migrationStatements.length, firstRunStatementCount)
 })
 
-test('allows supplying migration SQL to the migration runner', async () => {
-  const executed = []
-  await applyMigrations({
-    async query(sql) {
-      executed.push(sql)
-    },
-  }, 'SELECT 1')
+test('records migrations whose schema changes are already present', async () => {
+  const database = createDatabase({ schemaState: () => 1 })
 
-  assert.deepEqual(executed, ['SELECT 1'])
+  await applyMigrations(database)
+
+  assert.equal(database.recordedMigrations.size, 8)
+  assert.deepEqual(database.migrationStatements, [])
+})
+
+test('stops when a migration has only some of its schema changes', async () => {
+  const database = createDatabase({
+    schemaState: (_sql, values) => Number(values.includes('numero_notificacion')),
+  })
+
+  await assert.rejects(
+    applyMigrations(database),
+    /001_notification_schedule\.sql está aplicada parcialmente/,
+  )
+  assert.deepEqual(database.migrationStatements, [])
 })

@@ -1263,10 +1263,12 @@
   gap: 16px;
 }
 
+.settings-primary-column { display: grid; min-width: 0; gap: 16px; }
+
 .settings-panel,
 .templates-panel { padding: 21px; }
 
-.manual-message-panel { margin-top: 16px; padding: 21px; }
+.manual-message-panel { padding: 21px; }
 
 .manual-message-description {
   max-width: 760px;

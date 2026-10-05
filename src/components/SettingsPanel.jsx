@@ -200,29 +200,76 @@ function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendMan
       </section>
 
       <div className="settings-layout">
-        <section className="panel settings-panel">
-          <div className="settings-section-heading">
-            <span className="settings-section-icon"><BellRing size={18} /></span>
-            <div><div className="section-kicker">RECORDATORIOS</div><h2>Parámetros de aviso</h2></div>
-          </div>
-          <form className="settings-form" onSubmit={saveSettings}>
-            <label className="form-field"><span>Días de anticipación</span><input name="diasAnticipacion" type="number" min="1" max="365" value={settingsDraft.diasAnticipacion} onChange={updateSetting} required /><small>Cuánto antes del cumpleaños comienza el seguimiento.</small></label>
-            <label className="form-field"><span>Cantidad de notificaciones</span><input name="cantidadNotificaciones" type="number" min="1" max="3" value={settingsDraft.cantidadNotificaciones} onChange={updateSetting} required /><small>Entre 1 y 3 avisos por cada festejo.</small></label>
-            <label className="form-field"><span>Intervalo entre avisos (días)</span><input name="plazosDias" type="number" min="1" max="90" value={settingsDraft.plazosDias} onChange={updateSetting} required /><small>Separación entre una notificación y la siguiente.</small></label>
-            <label className="form-field"><span>Teléfono de administración</span><input name="telefonoAdmin" type="tel" value={settingsDraft.telefonoAdmin} onChange={updateSetting} placeholder="+54 9 11 0000 0000" required /><small>Número de contacto para las notificaciones internas.</small></label>
-            <div className="settings-form-footer"><span><Clock3 size={14} /> Cambios guardados en la base de datos</span><button className="primary-button" type="submit"><Save size={16} />Guardar ajustes</button></div>
-          </form>
-          <section className="settings-theme-section" aria-labelledby="theme-heading">
+        <div className="settings-primary-column">
+          <section className="panel settings-panel">
             <div className="settings-section-heading">
-              <span className="settings-section-icon settings-theme-icon">{theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}</span>
-              <div><div className="section-kicker">APARIENCIA</div><h2 id="theme-heading">Tema del panel</h2></div>
+              <span className="settings-section-icon"><BellRing size={18} /></span>
+              <div><div className="section-kicker">RECORDATORIOS</div><h2>Parámetros de aviso</h2></div>
             </div>
-            <div className="theme-control" role="group" aria-label="Tema de la página">
-              <button className={theme === 'light' ? 'theme-choice-active' : ''} type="button" aria-pressed={theme === 'light'} onClick={() => onThemeChange('light')}><Sun size={16} /><span>Claro</span></button>
-              <button className={theme === 'dark' ? 'theme-choice-active' : ''} type="button" aria-pressed={theme === 'dark'} onClick={() => onThemeChange('dark')}><Moon size={16} /><span>Oscuro</span></button>
-            </div>
+            <form className="settings-form" onSubmit={saveSettings}>
+              <label className="form-field"><span>Días de anticipación</span><input name="diasAnticipacion" type="number" min="1" max="365" value={settingsDraft.diasAnticipacion} onChange={updateSetting} required /><small>Cuánto antes del cumpleaños comienza el seguimiento.</small></label>
+              <label className="form-field"><span>Cantidad de notificaciones</span><input name="cantidadNotificaciones" type="number" min="1" max="3" value={settingsDraft.cantidadNotificaciones} onChange={updateSetting} required /><small>Entre 1 y 3 avisos por cada festejo.</small></label>
+              <label className="form-field"><span>Intervalo entre avisos (días)</span><input name="plazosDias" type="number" min="1" max="90" value={settingsDraft.plazosDias} onChange={updateSetting} required /><small>Separación entre una notificación y la siguiente.</small></label>
+              <label className="form-field"><span>Teléfono de administración</span><input name="telefonoAdmin" type="tel" value={settingsDraft.telefonoAdmin} onChange={updateSetting} placeholder="+54 9 11 0000 0000" required /><small>Número de contacto para las notificaciones internas.</small></label>
+              <div className="settings-form-footer"><span><Clock3 size={14} /> Cambios guardados en la base de datos</span><button className="primary-button" type="submit"><Save size={16} />Guardar ajustes</button></div>
+            </form>
+            <section className="settings-theme-section" aria-labelledby="theme-heading">
+              <div className="settings-section-heading">
+                <span className="settings-section-icon settings-theme-icon">{theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}</span>
+                <div><div className="section-kicker">APARIENCIA</div><h2 id="theme-heading">Tema del panel</h2></div>
+              </div>
+              <div className="theme-control" role="group" aria-label="Tema de la página">
+                <button className={theme === 'light' ? 'theme-choice-active' : ''} type="button" aria-pressed={theme === 'light'} onClick={() => onThemeChange('light')}><Sun size={16} /><span>Claro</span></button>
+                <button className={theme === 'dark' ? 'theme-choice-active' : ''} type="button" aria-pressed={theme === 'dark'} onClick={() => onThemeChange('dark')}><Moon size={16} /><span>Oscuro</span></button>
+              </div>
+            </section>
           </section>
-        </section>
+
+          <section className="panel manual-message-panel">
+            <div className="settings-section-heading">
+              <span className="settings-section-icon settings-message-icon"><Send size={17} /></span>
+              <div><div className="section-kicker">ENVÍO MANUAL</div><h2>Contactar a un cliente</h2></div>
+            </div>
+            <p className="manual-message-description">Envía primero la plantilla oficial configurada en WhatsApp. El mensaje elegido queda preparado y se enviará automáticamente cuando el cliente responda; si responde “No, gracias”, se cancela el seguimiento.</p>
+            <form className="manual-message-form" onSubmit={sendManualMessage}>
+              <label className="form-field">
+                <span>Cliente</span>
+                <select value={manualClientId} onChange={(event) => setManualClientId(event.target.value)} required>
+                  <option value="">Selecciona un cliente</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>{client.tutor} — {client.cumpleanero} ({client.telefono})</option>
+                  ))}
+                </select>
+              </label>
+              <label className="form-field">
+                <span>Plantilla de seguimiento</span>
+                <select value={manualTemplateId} onChange={(event) => setManualTemplateId(event.target.value)} required>
+                  <option value="">Selecciona una plantilla</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>{template.nombreOferta}{template.activa ? '' : ' (inactiva)'}</option>
+                  ))}
+                </select>
+              </label>
+              {followupPreview && (
+                <div className="manual-message-preview">
+                  <span>Mensaje que se enviará si responde</span>
+                  <p>{followupPreview}</p>
+                </div>
+              )}
+              {(clients.length === 0 || templates.length === 0) && (
+                <p className="manual-message-empty">
+                  {clients.length === 0 ? 'No hay clientes activos para seleccionar.' : 'Agrega una plantilla antes de preparar un envío manual.'}
+                </p>
+              )}
+              <div className="manual-message-footer">
+                <span>El envío usa PLANTILLA_WHATSAPP y el idioma configurado en el servidor.</span>
+                <button className="primary-button" type="submit" disabled={manualSendPending || !manualClientId || !manualTemplateId || clients.length === 0 || templates.length === 0}>
+                  <Send size={15} />{manualSendPending ? 'Enviando…' : 'Enviar plantilla oficial'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
 
         <section className="panel templates-panel">
           <div className="settings-templates-heading">
@@ -250,51 +297,6 @@ function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendMan
           </div>
         </section>
       </div>
-
-      <section className="panel manual-message-panel">
-        <div className="settings-section-heading">
-          <span className="settings-section-icon settings-message-icon"><Send size={17} /></span>
-          <div><div className="section-kicker">ENVÍO MANUAL</div><h2>Contactar a un cliente</h2></div>
-        </div>
-        <p className="manual-message-description">Envía primero la plantilla oficial configurada en WhatsApp. El mensaje elegido queda preparado y se enviará automáticamente cuando el cliente responda; si responde “No, gracias”, se cancela el seguimiento.</p>
-        <form className="manual-message-form" onSubmit={sendManualMessage}>
-          <label className="form-field">
-            <span>Cliente</span>
-            <select value={manualClientId} onChange={(event) => setManualClientId(event.target.value)} required>
-              <option value="">Selecciona un cliente</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>{client.tutor} — {client.cumpleanero} ({client.telefono})</option>
-              ))}
-            </select>
-          </label>
-          <label className="form-field">
-            <span>Plantilla de seguimiento</span>
-            <select value={manualTemplateId} onChange={(event) => setManualTemplateId(event.target.value)} required>
-              <option value="">Selecciona una plantilla</option>
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>{template.nombreOferta}{template.activa ? '' : ' (inactiva)'}</option>
-              ))}
-            </select>
-          </label>
-          {followupPreview && (
-            <div className="manual-message-preview">
-              <span>Mensaje que se enviará si responde</span>
-              <p>{followupPreview}</p>
-            </div>
-          )}
-          {(clients.length === 0 || templates.length === 0) && (
-            <p className="manual-message-empty">
-              {clients.length === 0 ? 'No hay clientes activos para seleccionar.' : 'Agrega una plantilla antes de preparar un envío manual.'}
-            </p>
-          )}
-          <div className="manual-message-footer">
-            <span>El envío usa PLANTILLA_WHATSAPP y el idioma configurado en el servidor.</span>
-            <button className="primary-button" type="submit" disabled={manualSendPending || !manualClientId || !manualTemplateId || clients.length === 0 || templates.length === 0}>
-              <Send size={15} />{manualSendPending ? 'Enviando…' : 'Enviar plantilla oficial'}
-            </button>
-          </div>
-        </form>
-      </section>
 
       {templateDraft && (
         <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTemplateDraft(null)}>
