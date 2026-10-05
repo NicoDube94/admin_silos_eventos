@@ -64,6 +64,62 @@ test('dispatches only the selected clients on the configured test date and alert
   assert.equal(database.historyUpdates.filter(({ query }) => query.includes("estado = 'enviado'")).length, 2)
 })
 
+test('records a 131049 failure and continues with the next client', async () => {
+  const database = createDatabase()
+  const attemptedRecipients = []
+  const previousConsoleError = console.error
+  console.error = () => {}
+  let messageNumber = 0
+  let result
+
+  try {
+    result = await dispatchDueNotifications(database, '2026-10-04', {
+      enabled: true,
+      sendDate: '2026-10-04',
+      clientIds: [1, 60001],
+      templateName: 'primer_aviso_cumple',
+      language: 'es_AR',
+      imageBuffer: Buffer.from('test-image'),
+      uploadMedia: async () => ({ mediaId: 'media-test' }),
+      sendTemplate: async (to) => {
+        attemptedRecipients.push(to)
+        if (to === '5491111111111') {
+          const error = new Error('Healthy ecosystem engagement restriction')
+          error.status = 502
+          error.meta = { code: 131049, title: 'Healthy ecosystem engagement' }
+          throw error
+        }
+        messageNumber += 1
+        return { messageId: `wamid.success-${messageNumber}` }
+      },
+    })
+  } finally {
+    console.error = previousConsoleError
+  }
+
+  assert.deepEqual(result, {
+    enabled: true,
+    attempted: 2,
+    accepted: 1,
+    failed: 1,
+    outcomes: [
+      { clientId: 1, status: 'failed', error: 'Healthy ecosystem engagement restriction' },
+      { clientId: 60001, status: 'accepted', messageId: 'wamid.success-2' },
+    ],
+  })
+  assert.deepEqual(attemptedRecipients, [
+    '5491111111111',
+    '5492222222222',
+    '5493333333333',
+    '5492222222222',
+  ])
+  const failedUpdate = database.historyUpdates.find(({ query }) => query.includes("estado = 'fallido'"))
+  assert.deepEqual(JSON.parse(failedUpdate.parameters[0]), {
+    message: 'Healthy ecosystem engagement restriction',
+    meta: { code: 131049, title: 'Healthy ecosystem engagement' },
+  })
+})
+
 test('does not dispatch outside the configured one-day window', async () => {
   const database = createDatabase()
   const result = await dispatchDueNotifications(database, '2026-10-03', {

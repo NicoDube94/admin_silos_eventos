@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BellRing, CakeSlice, Check, Clock3, MessageSquareText, Moon, Pencil, Plus, Save, Sun, ToggleLeft, Trash2, UserRound, X } from 'lucide-react'
+import { BellRing, CakeSlice, Check, Clock3, MessageSquareText, Moon, Pencil, Plus, Send, Save, Sun, ToggleLeft, Trash2, UserRound, X } from 'lucide-react'
 
 const templateVariables = {
   nombre_tutor: 'Nombre del tutor',
@@ -94,11 +94,14 @@ function TemplateMessageEditor({ value, onChange }) {
     </>
   )
 }
-function SettingsPanel({ settings, templates, onSaveSettings, onSaveTemplate, onToggleTemplate, onDeleteTemplate, onToast, theme, onThemeChange }) {
+function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendManualMessage, onSaveTemplate, onToggleTemplate, onDeleteTemplate, onToast, theme, onThemeChange }) {
   const [settingsDraft, setSettingsDraft] = useState(settings)
   const [templateDraft, setTemplateDraft] = useState(null)
   const [templateToDelete, setTemplateToDelete] = useState(null)
   const [deletionPending, setDeletionPending] = useState(false)
+  const [manualClientId, setManualClientId] = useState('')
+  const [manualTemplateId, setManualTemplateId] = useState('')
+  const [manualSendPending, setManualSendPending] = useState(false)
 
   function updateSetting(event) {
     const { name, value, type } = event.target
@@ -162,6 +165,30 @@ function SettingsPanel({ settings, templates, onSaveSettings, onSaveTemplate, on
     }
   }
 
+  async function sendManualMessage(event) {
+    event.preventDefault()
+    if (!manualClientId || !manualTemplateId || manualSendPending) return
+    setManualSendPending(true)
+    try {
+      const result = await onSendManualMessage(Number(manualClientId), Number(manualTemplateId))
+      onToast(`La plantilla oficial se envió; el seguimiento "${result.followupTemplate}" se enviará cuando responda.`)
+      setManualClientId('')
+      setManualTemplateId('')
+    } catch {
+      return
+    } finally {
+      setManualSendPending(false)
+    }
+  }
+
+  const selectedClient = clients.find((client) => String(client.id) === manualClientId)
+  const selectedTemplate = templates.find((template) => String(template.id) === manualTemplateId)
+  const followupPreview = selectedClient && selectedTemplate
+    ? selectedTemplate.cuerpoMensaje
+      .replaceAll('{{nombre_tutor}}', selectedClient.tutor)
+      .replaceAll('{{nombre_cumpleanero}}', selectedClient.cumpleanero)
+    : ''
+
   return (
     <div className="dashboard-content settings-content">
       <section className="page-heading">
@@ -223,6 +250,51 @@ function SettingsPanel({ settings, templates, onSaveSettings, onSaveTemplate, on
           </div>
         </section>
       </div>
+
+      <section className="panel manual-message-panel">
+        <div className="settings-section-heading">
+          <span className="settings-section-icon settings-message-icon"><Send size={17} /></span>
+          <div><div className="section-kicker">ENVÍO MANUAL</div><h2>Contactar a un cliente</h2></div>
+        </div>
+        <p className="manual-message-description">Envía primero la plantilla oficial configurada en WhatsApp. El mensaje elegido queda preparado y se enviará automáticamente cuando el cliente responda; si responde “No, gracias”, se cancela el seguimiento.</p>
+        <form className="manual-message-form" onSubmit={sendManualMessage}>
+          <label className="form-field">
+            <span>Cliente</span>
+            <select value={manualClientId} onChange={(event) => setManualClientId(event.target.value)} required>
+              <option value="">Selecciona un cliente</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>{client.tutor} — {client.cumpleanero} ({client.telefono})</option>
+              ))}
+            </select>
+          </label>
+          <label className="form-field">
+            <span>Plantilla de seguimiento</span>
+            <select value={manualTemplateId} onChange={(event) => setManualTemplateId(event.target.value)} required>
+              <option value="">Selecciona una plantilla</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>{template.nombreOferta}{template.activa ? '' : ' (inactiva)'}</option>
+              ))}
+            </select>
+          </label>
+          {followupPreview && (
+            <div className="manual-message-preview">
+              <span>Mensaje que se enviará si responde</span>
+              <p>{followupPreview}</p>
+            </div>
+          )}
+          {(clients.length === 0 || templates.length === 0) && (
+            <p className="manual-message-empty">
+              {clients.length === 0 ? 'No hay clientes activos para seleccionar.' : 'Agrega una plantilla antes de preparar un envío manual.'}
+            </p>
+          )}
+          <div className="manual-message-footer">
+            <span>El envío usa PLANTILLA_WHATSAPP y el idioma configurado en el servidor.</span>
+            <button className="primary-button" type="submit" disabled={manualSendPending || !manualClientId || !manualTemplateId || clients.length === 0 || templates.length === 0}>
+              <Send size={15} />{manualSendPending ? 'Enviando…' : 'Enviar plantilla oficial'}
+            </button>
+          </div>
+        </form>
+      </section>
 
       {templateDraft && (
         <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTemplateDraft(null)}>

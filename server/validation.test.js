@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseId, validateClient, validateSettings, validateTemplate, validateTheme } from './validation.js'
+import { parseId, validateClient, validateManualMessage, validateSettings, validateTemplate, validateTheme } from './validation.js'
 
 test('parseId only accepts positive integer identifiers', () => {
   assert.equal(parseId('42'), 42)
@@ -75,4 +75,13 @@ test('validateTheme accepts only light and dark', () => {
   assert.equal(validateTheme({ tema: 'dark' }), 'dark')
   assert.equal(validateTheme({ tema: 'light' }), 'light')
   assert.throws(() => validateTheme({ tema: 'blue' }), { status: 400 })
+})
+
+test('validateManualMessage requires positive client and template identifiers', () => {
+  assert.deepEqual(validateManualMessage({ clientId: '8', templateId: 12 }), {
+    clientId: 8,
+    templateId: 12,
+  })
+  assert.throws(() => validateManualMessage({ clientId: 0, templateId: 12 }), { status: 400 })
+  assert.throws(() => validateManualMessage({ clientId: 8, templateId: 'invalid' }), { status: 400 })
 })

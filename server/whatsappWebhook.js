@@ -72,6 +72,12 @@ function isNegativeReply(reply) {
     || /\b(no|cancelar|cancel|rechazar)\b/.test(value)
 }
 
+function isNegativeTextMessage(message) {
+  if (message.type !== 'text') return false
+  const value = normalizeReply(message.text?.body)
+  return /^(no|no gracias|no me interesa|no quiero|stop|cancelar)(\b|$)/.test(value)
+}
+
 function renderMessage(template, client) {
   return template
     .replaceAll('{{nombre_tutor}}', client.nombre_tutor)
@@ -98,19 +104,77 @@ async function getAvisoTest(database) {
   return offers[0] || null
 }
 
+async function sendPendingManualFollowup(database, client, phoneNumber, sendText) {
+  const [followups] = await database.execute(
+    `SELECT template_name, message_body
+     FROM whatsapp_manual_followups
+     WHERE client_id = ? AND status = 'pending'
+     LIMIT 1`,
+    [client.id],
+  )
+  const followup = followups[0]
+  if (!followup) return null
+
+  const [claim] = await database.execute(
+    `UPDATE whatsapp_manual_followups
+     SET status = 'processing'
+     WHERE client_id = ? AND status = 'pending'`,
+    [client.id],
+  )
+  if (!claim.affectedRows) return null
+
+  try {
+    const result = await sendText(phoneNumber, followup.message_body)
+    await database.execute(
+      `UPDATE whatsapp_manual_followups
+       SET status = 'sent', completed_at = CURRENT_TIMESTAMP
+       WHERE client_id = ? AND status = 'processing'`,
+      [client.id],
+    )
+    return {
+      processed: true,
+      action: 'manual_followup_sent',
+      clientId: Number(client.id),
+      templateName: followup.template_name,
+      messageId: result.messageId,
+    }
+  } catch (error) {
+    await database.execute(
+      `UPDATE whatsapp_manual_followups
+       SET status = 'failed', error_details = ?, completed_at = CURRENT_TIMESTAMP
+       WHERE client_id = ? AND status = 'processing'`,
+      [JSON.stringify({ message: error.message, meta: error.meta ?? null }), client.id],
+    )
+    throw error
+  }
+}
+
 async function processIncomingMessage(message, database, sendText) {
   if (!rememberMessage(message.id)) return { processed: false, reason: 'duplicate' }
   const reply = extractButtonReply(message)
-  if (!reply || (!isAffirmativeReply(reply) && !isNegativeReply(reply))) {
-    return { processed: false, reason: 'unsupported_reply' }
-  }
-
   const phoneNumber = message.from
   const client = await getClientByPhone(database, phoneNumber)
 
-  if (isNegativeReply(reply)) {
+  if (isNegativeReply(reply) || isNegativeTextMessage(message)) {
+    if (client) {
+      await database.execute(
+        `UPDATE whatsapp_manual_followups
+         SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
+         WHERE client_id = ? AND status = 'pending'`,
+        [client.id],
+      )
+    }
     await sendText(phoneNumber, 'Gracias por avisarnos. ¡Que tengas un hermoso día! Si cambias de opinión, puedes comunicarte al 2657287394.')
     return { processed: true, action: 'declined', clientId: client?.id ?? null }
+  }
+
+  if (client) {
+    const followup = await sendPendingManualFollowup(database, client, phoneNumber, sendText)
+    if (followup) return followup
+  }
+
+  if (!reply || !isAffirmativeReply(reply)) {
+    return { processed: false, reason: 'unsupported_reply' }
   }
 
   if (!client) {
@@ -157,6 +221,12 @@ async function processMessageStatus(status, database) {
       `UPDATE historial_notificaciones
        SET estado = 'fallido', detalle_error = ?
        WHERE whatsapp_message_id = ?`,
+      [JSON.stringify(metaError || {}), status.id],
+    )
+    await database.execute(
+      `UPDATE whatsapp_manual_followups
+       SET status = 'failed', error_details = ?, completed_at = CURRENT_TIMESTAMP
+       WHERE primary_message_id = ? AND status = 'pending'`,
       [JSON.stringify(metaError || {}), status.id],
     )
   }

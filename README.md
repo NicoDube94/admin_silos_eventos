@@ -44,13 +44,13 @@ $body = @{ parameters = @('Prueba', 'Prueba'); headerImage = @{ link = 'https://
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:3001/api/whatsapp/test-template -ContentType 'application/json' -Body $body
 ```
 
-La plantilla debe estar aprobada en el locale configurado por `WHATSAPP_TEMPLATE_LANGUAGE` (por defecto `es_AR`). Un clic en respuesta rápida se recibe mediante el webhook documentado abajo. Dentro de la ventana de atención de 24 horas, la respuesta del cliente permite enviar texto libre; fuera de ella se requiere una plantilla aprobada. El envío automático de pendientes queda desactivado hasta integrar las plantillas con el esquema de ofertas y procesar las respuestas.
+La plantilla debe estar aprobada en el locale configurado por `WHATSAPP_TEMPLATE_LANGUAGE` (por defecto `es_AR`). En Ajustes del sistema se puede iniciar un envío manual a un cliente: siempre se manda primero `PLANTILLA_WHATSAPP` con los datos del tutor y cumpleañero, y se registra la plantilla de ofertas elegida para enviarla como seguimiento cuando el cliente responde. Una respuesta explícita `No, Gracias` cancela el seguimiento y conserva la despedida habitual. El seguimiento usa texto libre dentro de la ventana de atención de 24 horas que abre la respuesta del cliente.
 
 ### Webhook de respuestas rápidas
 
 La URL de callback de la API es `/api/webhooks/whatsapp`. Meta necesita una URL pública HTTPS, por ejemplo `https://tu-servicio.onrender.com/api/webhooks/whatsapp`; `127.0.0.1` no es accesible desde Meta. En Render no necesitas ngrok. Configura en el servicio las variables `WHATSAPP_WEBHOOK_VERIFY_TOKEN` y `WHATSAPP_APP_SECRET` y en Meta utiliza el mismo token de verificación. Suscribe el campo `messages`; los cambios de entrega (`sent`, `delivered`, `read`, `failed`) llegan en ese webhook y quedan en `whatsapp_message_statuses`. Puedes consultarlos en `GET /api/whatsapp/statuses`.
 
-En Meta Developers, en el webhook de WhatsApp, usa esa URL y el mismo `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Suscribe el campo `messages` y completa la verificación. Cuando el cliente pulse `Quiero saber más`, la API busca la oferta activa llamada `aviso test`, reemplaza `{{nombre_tutor}}` y `{{nombre_cumpleanero}}`, y envía su cuerpo como texto libre dentro de la ventana de atención iniciada por el cliente. Al pulsar `No, Gracias`, responde: `Gracias por avisarnos. ¡Que tengas un hermoso día! Si cambias de opinión, puedes comunicarte al 2657287394.` Los eventos repetidos no se procesan dos veces.
+En Meta Developers, en el webhook de WhatsApp, usa esa URL y el mismo `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. Suscribe el campo `messages` y completa la verificación. Para un envío manual registrado desde Ajustes, una respuesta entrante que no sea `No, Gracias` dispara una sola vez el seguimiento elegido; la plantilla y el texto personalizado quedan asociados al cliente hasta que responda. Al pulsar `No, Gracias`, se cancela ese seguimiento y responde: `Gracias por avisarnos. ¡Que tengas un hermoso día! Si cambias de opinión, puedes comunicarte al 2657287394.` Sin un seguimiento manual pendiente, el flujo previo de la oferta activa `aviso test` ante `Quiero saber más` permanece disponible. Los eventos repetidos no procesan dos veces el mismo mensaje.
 
 ### Despliegue en Render
 
@@ -58,7 +58,7 @@ El archivo `render.yaml` configura un único Web Service para servir el frontend
 
 El Blueprint limita el envío de prueba al 4 de octubre de 2026, 09:00 de Argentina, y a los IDs de cliente 1 y 60001. Utiliza `PLANTILLA_WHATSAPP` y `silos_1.jpg`, y envía esa misma plantilla aprobada al teléfono administrativo por cada cliente procesado. Al finalizar la fecha, la protección impide nuevos envíos. Un Render Free puede dormir y ejecutar al despertar, por lo que no garantiza el minuto exacto de las 09:00.
 
-El servicio API no incluye autenticación de administrador. Antes de usar datos reales en un servicio público, agrega autenticación o protege el acceso mediante un proxy de identidad.
+Antes de utilizar los envíos manuales, aplica la migración `db/migrations/008_manual_message_followups.sql` además de las migraciones pendientes. El servicio API no incluye autenticación de administrador. Antes de usar datos reales en un servicio público, agrega autenticación o protege el acceso mediante un proxy de identidad.
 
 La API debe estar ejecutándose en el servidor que corresponde al dominio público. Para una prueba local se necesita un túnel HTTPS, por ejemplo Cloudflare Tunnel o ngrok; la URL resultante debe conservar el sufijo `/api/webhooks/whatsapp`.
 
@@ -78,4 +78,3 @@ npm run test
 npm run lint
 npm run build
 ```
-

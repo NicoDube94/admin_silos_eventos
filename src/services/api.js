@@ -38,6 +38,10 @@ export const api = {
   saveSettings: (settings) => request('/settings', jsonBody(settings)),
   saveTheme: (tema) => request('/settings/theme', { method: 'PATCH', body: JSON.stringify({ tema }) }),
   templates: () => request('/templates'),
+  sendManualWhatsAppMessage: (clientId, templateId) => request('/whatsapp/manual', {
+    method: 'POST',
+    body: JSON.stringify({ clientId, templateId }),
+  }),
   createTemplate: (template) => request('/templates', { method: 'POST', body: JSON.stringify(template) }),
   updateTemplate: (id, template) => request(`/templates/${id}`, jsonBody(template)),
   setTemplateActive: (id, activa) => request(`/templates/${id}/active`, {

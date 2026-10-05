@@ -3,9 +3,10 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getPool, isDatabaseConfigured } from './db.js'
-import { ApiError, parseId, validateClient, validateSettings, validateTemplate, validateTheme } from './validation.js'
+import { ApiError, parseId, validateClient, validateManualMessage, validateSettings, validateTemplate, validateTheme } from './validation.js'
 import { sendWhatsAppTemplate, sendWhatsAppText } from './whatsapp.js'
 import { handleWhatsAppWebhook, verifyWebhookSignature } from './whatsappWebhook.js'
+import { sendManualWhatsAppMessage } from './manualMessage.js'
 import { deleteTemplate, saveTemplate as saveTemplateRecord, setTemplateActive } from './templateService.js'
 
 const app = express()
@@ -116,6 +117,13 @@ app.post('/api/whatsapp/test-template', asyncRoute(async (request, response) => 
   const language = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'es_AR'
   const result = await sendWhatsAppTemplate(process.env.WHATSAPP_TO, templateName, language, { parameters, headerImage })
   response.json({ enviado: true, tipo: 'plantilla', ...result })
+}))
+
+app.post('/api/whatsapp/manual', asyncRoute(async (request, response) => {
+  const database = requireDatabase()
+  const { clientId, templateId } = validateManualMessage(request.body)
+  const result = await sendManualWhatsAppMessage(database, clientId, templateId)
+  response.json({ enviado: true, ...result })
 }))
 
 app.get('/api/webhooks/whatsapp', (request, response) => {

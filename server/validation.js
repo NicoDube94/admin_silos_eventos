@@ -77,6 +77,13 @@ export function validateTheme(body = {}) {
   return body.tema
 }
 
+export function validateManualMessage(body = {}) {
+  return {
+    clientId: parseId(body.clientId),
+    templateId: parseId(body.templateId),
+  }
+}
+
 export function validateTemplate(body = {}) {
   if (typeof body.activa !== 'boolean') {
     throw new ApiError(400, 'El campo activa debe ser verdadero o falso.')

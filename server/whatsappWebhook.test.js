@@ -15,6 +15,7 @@ function createDatabase() {
       if (query.startsWith('SELECT id, telefono_whatsapp')) {
         return [[{ id: 8, telefono_whatsapp: '+54 9 11 1234-5678', nombre_tutor: 'Ana', nombre_cumpleanero: 'Sofia' }]]
       }
+      if (query.includes('FROM whatsapp_manual_followups')) return [[]]
       if (query.startsWith('SELECT nombre_oferta, cuerpo_mensaje')) {
         return [[{ nombre_oferta: 'aviso test', cuerpo_mensaje: 'Hola {{nombre_tutor}}, {{nombre_cumpleanero}} tiene una oferta.' }]]
       }
@@ -26,6 +27,7 @@ function createDatabase() {
         failedHistoryRecords.push(parameters)
         return [{ affectedRows: 1 }]
       }
+      if (query.includes('UPDATE whatsapp_manual_followups')) return [{ affectedRows: 1 }]
       throw new Error(`Consulta inesperada: ${query}`)
     },
   }
@@ -167,4 +169,83 @@ test('sends a polite goodbye and admin contact after “No, Gracias”, and igno
     to: '5491112345678',
     text: 'Gracias por avisarnos. ¡Que tengas un hermoso día! Si cambias de opinión, puedes comunicarte al 2657287394.',
   }])
+})
+
+test('sends a selected manual follow-up once after any customer response', async () => {
+  const statements = []
+  const database = {
+    async execute(query, parameters) {
+      statements.push({ query, parameters })
+      if (query.startsWith('SELECT id, telefono_whatsapp')) {
+        return [[{ id: 8, telefono_whatsapp: '+54 9 11 1234-5678', nombre_tutor: 'Ana', nombre_cumpleanero: 'Sofia' }]]
+      }
+      if (query.includes('FROM whatsapp_manual_followups')) {
+        return [[{ template_name: 'Oferta familiar', message_body: 'Hola Ana, oferta para Sofia' }]]
+      }
+      if (query.includes('UPDATE whatsapp_manual_followups')) return [{ affectedRows: 1 }]
+      if (query.startsWith('INSERT INTO whatsapp_message_statuses')) return [{ affectedRows: 1 }]
+      throw new Error(`Consulta inesperada: ${query}`)
+    },
+  }
+  const sent = []
+  const messagePayload = payload({
+    id: 'message-manual-followup',
+    from: '5491112345678',
+    type: 'text',
+    text: { body: 'Hola, quisiera más información' },
+  })
+  const options = {
+    sendText: async (to, text) => {
+      sent.push({ to, text })
+      return { messageId: 'reply-manual-1' }
+    },
+  }
+  const result = await handleWhatsAppWebhook(messagePayload, database, options)
+  const duplicate = await handleWhatsAppWebhook(messagePayload, database, options)
+
+  assert.deepEqual(result, [{
+    processed: true,
+    action: 'manual_followup_sent',
+    clientId: 8,
+    templateName: 'Oferta familiar',
+    messageId: 'reply-manual-1',
+  }])
+  assert.deepEqual(sent, [{ to: '5491112345678', text: 'Hola Ana, oferta para Sofia' }])
+  assert.deepEqual(duplicate, [{ processed: false, reason: 'duplicate' }])
+  assert.ok(statements.some(({ query }) => query.includes("SET status = 'processing'")))
+  assert.ok(statements.some(({ query }) => query.includes("SET status = 'sent'")))
+})
+
+test('does not send the manual follow-up after a negative text response', async () => {
+  const statements = []
+  const database = {
+    async execute(query, parameters) {
+      statements.push({ query, parameters })
+      if (query.startsWith('SELECT id, telefono_whatsapp')) {
+        return [[{ id: 8, telefono_whatsapp: '+54 9 11 1234-5678', nombre_tutor: 'Ana', nombre_cumpleanero: 'Sofia' }]]
+      }
+      if (query.includes('UPDATE whatsapp_manual_followups')) return [{ affectedRows: 1 }]
+      throw new Error(`Consulta inesperada: ${query}`)
+    },
+  }
+  const sent = []
+  const result = await handleWhatsAppWebhook(payload({
+    id: 'message-manual-negative',
+    from: '5491112345678',
+    type: 'text',
+    text: { body: 'No, gracias' },
+  }), database, {
+    sendText: async (to, text) => {
+      sent.push({ to, text })
+      return { messageId: 'reply-manual-no' }
+    },
+  })
+
+  assert.deepEqual(result, [{ processed: true, action: 'declined', clientId: 8 }])
+  assert.deepEqual(sent, [{
+    to: '5491112345678',
+    text: 'Gracias por avisarnos. ¡Que tengas un hermoso día! Si cambias de opinión, puedes comunicarte al 2657287394.',
+  }])
+  assert.ok(statements.some(({ query }) => query.includes("SET status = 'cancelled'")))
+  assert.ok(statements.every(({ query }) => !query.includes("SET status = 'processing'")))
 })

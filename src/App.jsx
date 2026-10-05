@@ -362,6 +362,20 @@ function App() {
     }
   }
 
+  async function sendManualWhatsAppMessage(clientId, templateId) {
+    try {
+      const result = await api.sendManualWhatsAppMessage(clientId, templateId)
+      return result
+    } catch (error) {
+      setToast(`No se pudo enviar el mensaje: ${error.message}`)
+      if (!error.status || error.status === 503) {
+        setConnectionError(error.message)
+        setConnectionState('offline')
+      }
+      throw error
+    }
+  }
+
   async function saveTemplate(template) {
     try {
       const result = template.id
@@ -501,8 +515,10 @@ function App() {
           <SettingsPanel
             key={connectionState}
             settings={settings}
+            clients={clients.filter((client) => client.activo)}
             templates={templates}
             onSaveSettings={saveSettings}
+            onSendManualMessage={sendManualWhatsAppMessage}
             onSaveTemplate={saveTemplate}
             onToggleTemplate={toggleTemplate}
             onDeleteTemplate={deleteTemplate}
