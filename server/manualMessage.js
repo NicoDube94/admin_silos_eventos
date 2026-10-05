@@ -40,6 +40,19 @@ export async function sendManualWhatsAppMessage(database, clientId, templateId, 
     throw createError(400, 'El mensaje de seguimiento personalizado supera el límite de 1024 caracteres de WhatsApp.')
   }
 
+  try {
+    await database.execute(
+      'SELECT client_id FROM whatsapp_manual_followups WHERE client_id = ? LIMIT 1',
+      [client.id],
+    )
+  } catch (error) {
+    if (error.code !== 'ER_NO_SUCH_TABLE') throw error
+    throw createError(
+      503,
+      'Falta la tabla de seguimientos manuales. Aplica db/migrations/008_manual_message_followups.sql en la base de datos y vuelve a intentar.',
+    )
+  }
+
   const image = options.imageBuffer ?? await readFile(new URL('../silos_1.jpg', import.meta.url))
   const upload = options.uploadMedia ?? uploadWhatsAppMedia
   const sendTemplate = options.sendTemplate ?? sendWhatsAppTemplate

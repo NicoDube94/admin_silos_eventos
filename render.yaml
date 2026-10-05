@@ -3,7 +3,7 @@ services:
     name: silos-eventos
     runtime: node
     buildCommand: npm ci && npm run build
-    startCommand: npm start
+    startCommand: npm run migrate && npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

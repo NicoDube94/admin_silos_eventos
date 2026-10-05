@@ -58,7 +58,7 @@ El archivo `render.yaml` configura un único Web Service para servir el frontend
 
 El Blueprint limita el envío de prueba al 4 de octubre de 2026, 09:00 de Argentina, y a los IDs de cliente 1 y 60001. Utiliza `PLANTILLA_WHATSAPP` y `silos_1.jpg`, y envía esa misma plantilla aprobada al teléfono administrativo por cada cliente procesado. Al finalizar la fecha, la protección impide nuevos envíos. Un Render Free puede dormir y ejecutar al despertar, por lo que no garantiza el minuto exacto de las 09:00.
 
-Antes de utilizar los envíos manuales, aplica la migración `db/migrations/008_manual_message_followups.sql` además de las migraciones pendientes. El servicio API no incluye autenticación de administrador. Antes de usar datos reales en un servicio público, agrega autenticación o protege el acceso mediante un proxy de identidad.
+Render ejecuta `npm run migrate` antes de iniciar la API en cada deploy. El script aplica `db/migrations/008_manual_message_followups.sql`, que usa `CREATE TABLE IF NOT EXISTS` para que repetirlo sea seguro. Si agregas migraciones SQL futuras, incorpora su ejecución en `server/migrate.js`. El servicio API no incluye autenticación de administrador. Antes de usar datos reales en un servicio público, agrega autenticación o protege el acceso mediante un proxy de identidad.
 
 La API debe estar ejecutándose en el servidor que corresponde al dominio público. Para una prueba local se necesita un túnel HTTPS, por ejemplo Cloudflare Tunnel o ngrok; la URL resultante debe conservar el sufijo `/api/webhooks/whatsapp`.
 
