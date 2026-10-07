@@ -50,7 +50,17 @@
 .login-card form { display: grid; gap: 15px; margin-top: 5px; }
 .login-card .form-field > span { color: #58665d; }
 .login-card .form-field input { height: 43px; }
-.login-card .primary-button { width: 100%; justify-content: center; margin-top: 3px; }
+.login-card .primary-button {
+  width: 100%;
+  min-height: 44px;
+  justify-content: center;
+  margin-top: 3px;
+  color: #fff;
+  background: #203b34;
+  border-color: #203b34;
+}
+.login-card .primary-button:hover:not(:disabled) { color: #fff; background: #2d5143; border-color: #2d5143; }
+.login-card .primary-button:disabled { color: #fff; background: #47715e; border-color: #47715e; cursor: wait; opacity: 1; }
 .login-error { margin: 0; color: #a44338; font-size: .82rem; }
 .login-loading { color: #53685a; font-size: .9rem; }
 .login-theme-error { padding: 8px 10px; color: #785d2e !important; background: #f8f2e4; border-radius: 5px; font-size: .76rem !important; }
@@ -61,6 +71,9 @@
 .login-screen[data-theme='dark'] .login-card > p,
 .login-screen[data-theme='dark'] .login-card .form-field > span { color: #a9b5ab; }
 .login-screen[data-theme='dark'] .login-card .form-field input { color: #e0e8e2; background: #1b2520; border-color: #46554b; }
+.login-screen[data-theme='dark'] .login-card .primary-button { color: #fff; background: #47715e; border-color: #47715e; }
+.login-screen[data-theme='dark'] .login-card .primary-button:hover:not(:disabled) { background: #58836e; border-color: #58836e; }
+.login-screen[data-theme='dark'] .login-card .primary-button:disabled { background: #3d624f; border-color: #3d624f; }
 .login-screen[data-theme='dark'] .login-theme-error { color: #e3ca97 !important; background: #3c3528; }
 .login-screen[data-theme='dark'] .login-loading { color: #c4d5c5; }
 
