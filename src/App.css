@@ -1831,6 +1831,7 @@
 .app-shell[data-theme='dark'] .empty-state { color: #9eaba1; }
 .app-shell[data-theme='dark'] .table-footer strong { color: #cbd5cd; }
 .app-shell[data-theme='dark'] .reminder-progress > span { background: #3d4941; }
+.app-shell[data-theme='dark'] .reminder-progress > span.reminder-sent { background: #6e9876; }
 .app-shell[data-theme='dark'] .status-pending { color: #e2c58c; background: #423a2b; }
 .app-shell[data-theme='dark'] .status-complete { color: #abd0ad; background: #2b4032; }
 .app-shell[data-theme='dark'] .upcoming-date { background: #2d3b31; }

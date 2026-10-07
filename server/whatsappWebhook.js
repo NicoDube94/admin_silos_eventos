@@ -10,6 +10,15 @@ function normalizePhoneNumber(value) {
   return String(value || '').replace(/\D/g, '')
 }
 
+function normalizeArgentinePhoneNumber(value) {
+  let digits = normalizePhoneNumber(value)
+  if (digits.startsWith('00')) digits = digits.slice(2)
+  if (digits.length === 13 && digits.startsWith('549')) return digits.slice(3)
+  if (digits.length === 12 && digits.startsWith('54')) return digits.slice(2)
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1)
+  return digits
+}
+
 function rememberMessage(messageId) {
   if (!messageId) return
   processedMessageIds.add(messageId)
@@ -89,11 +98,11 @@ function renderMessage(template, client) {
 }
 
 async function getClientByPhone(database, phoneNumber) {
-  const normalizedPhone = normalizePhoneNumber(phoneNumber)
+  const normalizedPhone = normalizeArgentinePhoneNumber(phoneNumber)
   const [clients] = await database.execute(
     'SELECT id, telefono_whatsapp, nombre_tutor, nombre_cumpleanero FROM clientes WHERE activo = 1',
   )
-  return clients.find((client) => normalizePhoneNumber(client.telefono_whatsapp) === normalizedPhone) || null
+  return clients.find((client) => normalizeArgentinePhoneNumber(client.telefono_whatsapp) === normalizedPhone) || null
 }
 
 async function getSentNotification(database, client, contextMessageId) {

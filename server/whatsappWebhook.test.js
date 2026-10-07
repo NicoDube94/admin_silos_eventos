@@ -206,6 +206,42 @@ test('recognizes a typed interest reply and uses the latest sent offer when no c
   }])
 })
 
+test('matches Argentine phone formats without matching different local numbers', async () => {
+  const database = {
+    async execute(query) {
+      if (query.startsWith('SELECT id, telefono_whatsapp')) {
+        return [[{ id: 8, telefono_whatsapp: '2657 96-5406', nombre_tutor: 'Ana', nombre_cumpleanero: 'Sofia' }]]
+      }
+      if (query.startsWith('SELECT h.numero_notificacion')) return [[]]
+      if (query.includes('FROM whatsapp_manual_followups')) return [[]]
+      throw new Error(`Consulta inesperada: ${query}`)
+    },
+  }
+  const options = { sendText: async () => ({ messageId: 'phone-match-reply' }) }
+  const matched = await handleWhatsAppWebhook(payload({
+    id: 'message-argentine-phone-match',
+    from: '5492657965406',
+    type: 'text',
+    text: { body: 'Quiero saber más' },
+  }), database, options)
+  const unmatched = await handleWhatsAppWebhook(payload({
+    id: 'message-different-local-phone',
+    from: '5492657287399',
+    type: 'text',
+    text: { body: 'Quiero saber más' },
+  }), database, options)
+
+  assert.deepEqual(matched, [{
+    processed: true,
+    action: 'offer_not_found',
+    clientId: 8,
+    offerName: null,
+    messageId: 'phone-match-reply',
+    adminNotified: false,
+  }])
+  assert.deepEqual(unmatched, [{ processed: true, action: 'unknown_client' }])
+})
+
 test('does not notify admin for a generic affirmative reply', async () => {
   const database = createDatabase({
     numero_notificacion: 1,
