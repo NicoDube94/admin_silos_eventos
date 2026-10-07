@@ -157,6 +157,14 @@ app.post('/api/auth/login', asyncRoute(async (request, response) => {
   response.json(await loginUser(requireDatabase(), request.body))
 }))
 
+app.get('/api/auth/theme', asyncRoute(async (_request, response) => {
+  const database = requireDatabase()
+  const [rows] = await database.execute(
+    'SELECT tema FROM configuracion_sistema WHERE id = 1 LIMIT 1',
+  )
+  response.json({ tema: rows[0]?.tema === 'dark' ? 'dark' : 'light' })
+}))
+
 app.use('/api', createAuthMiddleware(requireDatabase))
 
 app.get('/api/auth/session', (request, response) => {

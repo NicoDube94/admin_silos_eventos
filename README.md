@@ -22,6 +22,7 @@ El dump no contiene clientes ni plantillas de ejemplo. Los archivos `src/mockDat
 
 - `GET /api/health`: estado de conexión con la base.
 - `POST /api/auth/login`: valida usuario y contraseña y devuelve un JWT con vencimiento de 8 horas.
+- `GET /api/auth/theme`: tema claro/oscuro guardado para que la pantalla de login lo muestre antes de autenticar.
 - Las rutas de gestión requieren `Authorization: Bearer <JWT>`. La verificación de Meta para webhooks y `GET /api/health` permanecen públicas; los webhooks POST siguen validados por su firma HMAC.
 - `GET /api/users`, `POST /api/users`, `PUT /api/users/:id` y `DELETE /api/users/:id`: administración de usuarios autenticados. El usuario principal no se puede eliminar; su protección también se valida en la API.
 - `GET /api/whatsapp/statuses`: últimos 100 estados de mensajes recibidos de Meta, incluidos errores de entrega.

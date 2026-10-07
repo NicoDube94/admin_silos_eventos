@@ -34,6 +34,9 @@ test('health and data routes report missing database configuration', async () =>
     })
     assert.equal(loginResponse.status, 503)
 
+    const loginThemeResponse = await fetch(`${baseUrl}/api/auth/theme`)
+    assert.equal(loginThemeResponse.status, 503)
+
     const themeResponse = await fetch(`${baseUrl}/api/settings/theme`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

@@ -211,7 +211,7 @@ function BirthdayCalendar({ clients, onAddClient }) {
   )
 }
 
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, theme, themeLoadError }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -232,12 +232,13 @@ function LoginScreen({ onLogin }) {
   }
 
   return (
-    <main className="login-screen">
+    <main className="login-screen" data-theme={theme}>
       <section className="login-card">
         <span className="login-icon"><LockKeyhole size={22} /></span>
         <div className="section-kicker">SILOS EVENTOS</div>
         <h1>Iniciar sesión</h1>
         <p>Ingresa tus credenciales para acceder al panel de administración.</p>
+        {themeLoadError && <p className="login-theme-error" role="status">{themeLoadError}</p>}
         <form onSubmit={submitLogin}>
           <label className="form-field"><span>Nombre de usuario</span><input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required autoFocus /></label>
           <label className="form-field"><span>Contraseña</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
@@ -272,6 +273,7 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [theme, setTheme] = useState(getSavedTheme)
+  const [themeLoadError, setThemeLoadError] = useState('')
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState(getSavedDismissedNotifications)
   const [readNotificationIds, setReadNotificationIds] = useState(getSavedReadNotifications)
@@ -292,6 +294,21 @@ function App() {
         setAuthToken(null)
         setAuthUser(null)
         setAuthReady(true)
+      })
+    return () => { cancelled = true }
+  }, [authToken])
+
+  useEffect(() => {
+    if (authToken) return undefined
+    let cancelled = false
+    api.authTheme()
+      .then(({ tema }) => {
+        if (cancelled) return
+        setTheme(tema)
+        setThemeLoadError('')
+      })
+      .catch((error) => {
+        if (!cancelled) setThemeLoadError(`No se pudo cargar el tema del sistema: ${error.message}`)
       })
     return () => { cancelled = true }
   }, [authToken])
@@ -673,7 +690,7 @@ function App() {
   if (!authReady) {
     return <main className="login-screen"><p className="login-loading" role="status">Verificando sesión…</p></main>
   }
-  if (!authToken) return <LoginScreen onLogin={login} />
+  if (!authToken) return <LoginScreen onLogin={login} theme={theme} themeLoadError={themeLoadError} />
 
   return (
     <div className="app-shell" id="overview" data-theme={theme}>

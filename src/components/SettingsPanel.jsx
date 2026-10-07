@@ -362,6 +362,15 @@ function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendMan
               </div>
             </form>
           </section>
+
+          <AdminUsersPanel
+            users={users}
+            currentUserId={currentUserId}
+            onCreateUser={onCreateUser}
+            onUpdateUser={onUpdateUser}
+            onDeleteUser={onDeleteUser}
+            onToast={onToast}
+          />
         </div>
 
         <section className="panel templates-panel">
@@ -390,15 +399,6 @@ function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendMan
           </div>
         </section>
       </div>
-
-      <AdminUsersPanel
-        users={users}
-        currentUserId={currentUserId}
-        onCreateUser={onCreateUser}
-        onUpdateUser={onUpdateUser}
-        onDeleteUser={onDeleteUser}
-        onToast={onToast}
-      />
 
       {templateDraft && (
         <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTemplateDraft(null)}>

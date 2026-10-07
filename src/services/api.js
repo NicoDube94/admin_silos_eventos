@@ -56,6 +56,7 @@ function jsonBody(value) {
 
 export const api = {
   login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
+  authTheme: () => request('/auth/theme'),
   session: () => request('/auth/session'),
   health: () => request('/health'),
   clients: () => request('/clients'),
