@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { BellRing, CakeSlice, Check, Clock3, MessageSquareText, Moon, Pencil, Plus, Send, Save, Sun, ToggleLeft, Trash2, UserRound, X } from 'lucide-react'
+import { BellRing, CakeSlice, Check, Clock3, MessageSquareText, Moon, Pencil, Plus, Send, Save, ShieldCheck, Sun, ToggleLeft, Trash2, UserRound, UsersRound, X } from 'lucide-react'
 
 const templateVariables = {
   nombre_tutor: 'Nombre del tutor',
@@ -94,7 +94,100 @@ function TemplateMessageEditor({ value, onChange }) {
     </>
   )
 }
-function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendManualMessage, onSaveTemplate, onToggleTemplate, onDeleteTemplate, onToast, theme, onThemeChange }) {
+function AdminUsersPanel({ users, currentUserId, onCreateUser, onUpdateUser, onDeleteUser, onToast }) {
+  const [draft, setDraft] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [pending, setPending] = useState(false)
+
+  async function saveUser(event) {
+    event.preventDefault()
+    if (!draft || pending) return
+    setPending(true)
+    try {
+      const user = { username: draft.username, password: draft.password }
+      if (draft.id) await onUpdateUser(draft.id, user)
+      else await onCreateUser(user)
+      onToast(draft.id ? 'El usuario se actualizó' : 'El usuario se agregó')
+      setDraft(null)
+    } catch (error) {
+      onToast(error.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || pending) return
+    setPending(true)
+    try {
+      await onDeleteUser(deleteTarget)
+      onToast(`El usuario "${deleteTarget.username}" se eliminó`)
+      setDeleteTarget(null)
+    } catch (error) {
+      onToast(error.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <>
+      <section className="panel admin-users-panel">
+        <div className="settings-templates-heading">
+          <div className="settings-section-heading">
+            <span className="settings-section-icon"><UsersRound size={18} /></span>
+            <div><div className="section-kicker">ACCESO</div><h2>Usuarios administradores</h2></div>
+          </div>
+          <button className="text-button" type="button" onClick={() => setDraft({ username: '', password: '' })}><Plus size={16} /><span>Agregar usuario</span></button>
+        </div>
+        <p className="admin-users-description">Administra quién puede iniciar sesión y gestionar este panel.</p>
+        <div className="admin-user-list">
+          {users.map((user) => {
+            const cannotDelete = user.isPrincipal || users.length <= 1
+            return (
+              <article className="admin-user-item" key={user.id}>
+                <div className="admin-user-identity">
+                  <strong>{user.username}</strong>
+                  {user.isPrincipal && <span><ShieldCheck size={13} /> Principal</span>}
+                  {currentUserId === user.id && <small>Sesión actual</small>}
+                </div>
+                <div className="admin-user-actions">
+                  <button className="icon-button" type="button" title={`Editar ${user.username}`} aria-label={`Editar ${user.username}`} onClick={() => setDraft({ id: user.id, username: user.username, password: '' })}><Pencil size={15} /></button>
+                  <button className="icon-button admin-user-delete" type="button" title={cannotDelete ? 'El usuario principal no se puede eliminar' : `Eliminar ${user.username}`} aria-label={`Eliminar ${user.username}`} disabled={cannotDelete} onClick={() => setDeleteTarget(user)}><Trash2 size={15} /></button>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      {draft && (
+        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !pending && setDraft(null)}>
+          <section className="client-modal admin-user-modal" role="dialog" aria-modal="true" aria-labelledby="admin-user-modal-title">
+            <div className="modal-heading"><div><span className="modal-icon"><UsersRound size={19} /></span><div><div className="section-kicker">ACCESO AL PANEL</div><h2 id="admin-user-modal-title">{draft.id ? 'Editar usuario' : 'Agregar usuario'}</h2></div></div><button className="icon-button" type="button" aria-label="Cerrar" disabled={pending} onClick={() => setDraft(null)}><X size={19} /></button></div>
+            <form onSubmit={saveUser}>
+              <label className="form-field"><span>Nombre de usuario</span><input autoFocus autoComplete="username" minLength="3" maxLength="50" pattern="[A-Za-z0-9_.-]+" value={draft.username} onChange={(event) => setDraft((current) => ({ ...current, username: event.target.value }))} required /></label>
+              <label className="form-field"><span>{draft.id ? 'Nueva contraseña (opcional)' : 'Contraseña'}</span><input type="password" autoComplete={draft.id ? 'new-password' : 'new-password'} minLength="8" maxLength="72" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} required={!draft.id} /><small>Usa al menos 8 caracteres. Déjala vacía para conservar la actual.</small></label>
+              <div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setDraft(null)} disabled={pending}>Cancelar</button><button className="primary-button" type="submit" disabled={pending}>{pending ? 'Guardando…' : 'Guardar usuario'}</button></div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !pending && setDeleteTarget(null)}>
+          <section className="client-modal deactivate-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-admin-user-title">
+            <div className="modal-heading"><div><span className="modal-icon deactivate-modal-icon"><Trash2 size={19} /></span><div><div className="section-kicker">USUARIOS ADMINISTRADORES</div><h2 id="delete-admin-user-title">¿Eliminar a {deleteTarget.username}?</h2></div></div><button className="icon-button" type="button" aria-label="Cerrar" disabled={pending} onClick={() => setDeleteTarget(null)}><X size={19} /></button></div>
+            <p className="modal-intro">Este usuario perderá el acceso al panel.</p>
+            <div className="modal-actions"><button className="secondary-button" type="button" disabled={pending} onClick={() => setDeleteTarget(null)}>Cancelar</button><button className="primary-button danger-button" type="button" disabled={pending} onClick={confirmDelete}><Trash2 size={16} />{pending ? 'Eliminando…' : 'Eliminar usuario'}</button></div>
+          </section>
+        </div>
+      )}
+    </>
+  )
+}
+
+function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendManualMessage, onSaveTemplate, onToggleTemplate, onDeleteTemplate, onToast, theme, onThemeChange, users, currentUserId, onCreateUser, onUpdateUser, onDeleteUser }) {
   const [settingsDraft, setSettingsDraft] = useState(settings)
   const [templateDraft, setTemplateDraft] = useState(null)
   const [templateToDelete, setTemplateToDelete] = useState(null)
@@ -297,6 +390,15 @@ function SettingsPanel({ settings, clients, templates, onSaveSettings, onSendMan
           </div>
         </section>
       </div>
+
+      <AdminUsersPanel
+        users={users}
+        currentUserId={currentUserId}
+        onCreateUser={onCreateUser}
+        onUpdateUser={onUpdateUser}
+        onDeleteUser={onDeleteUser}
+        onToast={onToast}
+      />
 
       {templateDraft && (
         <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setTemplateDraft(null)}>

@@ -35,6 +35,9 @@ const migrationChecks = {
   '008_manual_message_followups.sql': [
     ['table', 'whatsapp_manual_followups'],
   ],
+  '009_admin_users.sql': [
+    ['table', 'usuarios_admin'],
+  ],
 }
 
 async function listMigrations() {

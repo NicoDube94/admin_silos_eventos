@@ -14,6 +14,46 @@
   background: var(--canvas);
 }
 
+.login-screen {
+  display: grid;
+  min-height: 100vh;
+  padding: 24px;
+  place-items: center;
+  background: #f3f5f2;
+}
+
+.login-card {
+  display: grid;
+  width: min(100%, 390px);
+  gap: 12px;
+  padding: 32px;
+  background: #fff;
+  border: 1px solid #e3e9e2;
+  border-radius: 9px;
+  box-shadow: 0 18px 50px rgba(24, 44, 34, .12);
+}
+
+.login-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 5px;
+  place-items: center;
+  color: #e0c17d;
+  background: #203b34;
+  border-radius: 8px;
+}
+
+.login-card .section-kicker { color: #6d8572; }
+.login-card h1 { margin: 0; color: #263b33; font-family: 'Lora', Georgia, serif; font-size: 1.65rem; }
+.login-card > p { margin: 0 0 6px; color: #78827d; font-size: .88rem; line-height: 1.5; }
+.login-card form { display: grid; gap: 15px; margin-top: 5px; }
+.login-card .form-field > span { color: #58665d; }
+.login-card .form-field input { height: 43px; }
+.login-card .primary-button { width: 100%; justify-content: center; margin-top: 3px; }
+.login-error { margin: 0; color: #a44338; font-size: .82rem; }
+.login-loading { color: #53685a; font-size: .9rem; }
+
 .sidebar {
   position: sticky;
   top: 0;
@@ -1270,6 +1310,20 @@
 
 .settings-panel,
 .templates-panel { padding: 21px; }
+.admin-users-panel { margin-top: 16px; padding: 21px; }
+.admin-users-description { margin: 14px 0; color: #78827d; font-size: .8em; }
+.admin-user-list { display: grid; }
+.admin-user-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid #edf0ec; }
+.admin-user-identity { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 8px; }
+.admin-user-identity strong { color: #35483d; font-size: .86em; }
+.admin-user-identity > span { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; color: #526e57; background: #edf3eb; border-radius: 4px; font-size: .68em; font-weight: 700; }
+.admin-user-identity small { color: #879189; font-size: .7em; }
+.admin-user-actions { display: flex; flex: 0 0 auto; gap: 4px; }
+.admin-user-delete { color: #a44f43; }
+.admin-user-delete:hover:not(:disabled) { color: #8f4037; background: #f8ece9; }
+.admin-user-delete:disabled { cursor: not-allowed; opacity: .38; }
+.admin-user-modal form { display: grid; gap: 14px; margin-top: 20px; }
+.admin-user-modal .form-field small { color: #78827d; font-size: .72em; line-height: 1.4; }
 
 .manual-message-panel { padding: 21px; }
 
@@ -1665,6 +1719,7 @@
   .form-row { grid-template-columns: 1fr; }
   .modal-actions .primary-button { padding: 0 10px; }
   .settings-panel, .templates-panel { padding: 16px 14px; }
+  .admin-users-panel { padding: 16px 14px; }
   .manual-message-panel { padding: 16px 14px; }
   .settings-form { grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 18px; }
   .settings-form-footer { align-items: stretch; flex-direction: column; }
@@ -1863,10 +1918,18 @@
 .app-shell[data-theme='dark'] .settings-theme-section,
 .app-shell[data-theme='dark'] .settings-form-footer,
 .app-shell[data-theme='dark'] .manual-message-footer,
-.app-shell[data-theme='dark'] .template-item-footer { border-color: #35433b; }
+.app-shell[data-theme='dark'] .template-item-footer,
+.app-shell[data-theme='dark'] .admin-user-item { border-color: #35433b; }
 .app-shell[data-theme='dark'] .manual-message-description,
 .app-shell[data-theme='dark'] .manual-message-footer > span,
-.app-shell[data-theme='dark'] .manual-message-empty { color: #a9b5ab; }
+.app-shell[data-theme='dark'] .manual-message-empty,
+.app-shell[data-theme='dark'] .admin-users-description,
+.app-shell[data-theme='dark'] .admin-user-identity small { color: #a9b5ab; }
+.app-shell[data-theme='dark'] .admin-user-identity strong { color: #e0e8e2; }
+.app-shell[data-theme='dark'] .admin-user-identity > span { color: #c4d5c5; background: #2b3b30; }
+.app-shell[data-theme='dark'] .admin-user-delete { color: #e1a89c; }
+.app-shell[data-theme='dark'] .admin-user-delete:hover:not(:disabled) { color: #ffd0c6; background: #452f2b; }
+.app-shell[data-theme='dark'] .admin-user-modal .form-field small { color: #a9b5ab; }
 .app-shell[data-theme='dark'] .manual-message-preview { background: #202c24; border-color: #35433b; }
 .app-shell[data-theme='dark'] .manual-message-preview > span,
 .app-shell[data-theme='dark'] .manual-message-preview p { color: #c0cbc2; }

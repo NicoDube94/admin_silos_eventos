@@ -8,18 +8,22 @@ Requisitos: Node.js 22.12 o posterior y una base TiDB/MySQL accesible.
 
 1. Si `.env` todavía no existe, créalo desde `.env.example` con `Copy-Item .env.example .env` en PowerShell; si ya existe, edítalo sin reemplazarlo.
 2. Completa `DB_HOST`, `DB_USER`, `DB_PASSWORD` y `DB_NAME` con los datos de TiDB Cloud. Conserva `DB_SSL=true` para TiDB.
-3. Importa `db_salon_eventos.sql` en la base.
-4. Ejecuta `npm run dev:full` y abre `http://127.0.0.1:5173/`.
+3. Genera un secreto JWT aleatorio de al menos 32 bytes y configúralo como `JWT_SECRET`. Por ejemplo: `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`. Mantén el mismo secreto entre reinicios y no lo publiques.
+4. Importa `db_salon_eventos.sql` en la base.
+5. Ejecuta `npm run migrate` para crear la cuenta inicial y después `npm run dev:full`; abre `http://127.0.0.1:5173/` e inicia sesión como `Mariano_1`. Cambia su contraseña desde Ajustes antes de exponer el servicio públicamente.
 
 El comando inicia la API en el puerto 3001 y Vite en el 5173. Vite reenvía `/api` a la API local. También puedes ejecutar `npm run api` y `npm run dev` en terminales separadas.
 
-Después de importar el dump inicial, ejecuta `npm run migrate` para aplicar en orden todas las migraciones pendientes de `db/migrations`. El runner registra cada archivo en `schema_migrations`, por lo que se puede ejecutar de nuevo de forma segura. También reconoce cambios de migraciones anteriores que ya estén en la base y los registra sin volver a aplicar sus `ALTER TABLE`. La migración `004_single_active_template_per_notice.sql` conserva activa la plantilla de ID más alto de cada aviso y desactiva las anteriores; `005_soft_delete_templates.sql` agrega la baja lógica de plantillas; `006_whatsapp_message_statuses.sql` guarda estados y errores de Meta; `007_notification_message_ids.sql` relaciona los WAMID con el historial. El motor genera avisos pendientes al iniciar la API y cada día a las 09:00 de `America/Argentina/Buenos_Aires`. Puedes cambiar el horario con `NOTIFICATION_CRON` y `NOTIFICATION_TIMEZONE` en `.env`. El tema elegido se guarda en la base y se comparte al abrir la aplicación desde otro navegador; si la API está desconectada, queda guardado localmente. Las plantillas se asignan al aviso 1, 2 o 3 y el icono de notificaciones muestra solo avisos enviados junto con una copia del mensaje utilizado.
+Después de importar el dump inicial, ejecuta `npm run migrate` para aplicar en orden todas las migraciones pendientes de `db/migrations`. El runner registra cada archivo en `schema_migrations`, por lo que se puede ejecutar de nuevo de forma segura. También reconoce cambios de migraciones anteriores que ya estén en la base y los registra sin volver a aplicar sus `ALTER TABLE`. La migración `004_single_active_template_per_notice.sql` conserva activa la plantilla de ID más alto de cada aviso y desactiva las anteriores; `005_soft_delete_templates.sql` agrega la baja lógica de plantillas; `006_whatsapp_message_statuses.sql` guarda estados y errores de Meta; `007_notification_message_ids.sql` relaciona los WAMID con el historial; `009_admin_users.sql` crea la cuenta inicial `Mariano_1` con la contraseña solicitada almacenada como hash bcrypt y marcada como principal. El motor genera avisos pendientes al iniciar la API y cada día a las 09:00 de `America/Argentina/Buenos_Aires`. Puedes cambiar el horario con `NOTIFICATION_CRON` y `NOTIFICATION_TIMEZONE` en `.env`. El tema elegido se guarda en la base y se comparte al abrir la aplicación desde otro navegador; si la API está desconectada, queda guardado localmente. Las plantillas se asignan al aviso 1, 2 o 3 y el icono de notificaciones muestra solo avisos enviados junto con una copia del mensaje utilizado.
 
 El dump no contiene clientes ni plantillas de ejemplo. Los archivos `src/mockData.json` y `src/mockSettings.json` solo se muestran como vista de demostración mientras la API está desconectada; no se insertan automáticamente en TiDB.
 
 ## API
 
 - `GET /api/health`: estado de conexión con la base.
+- `POST /api/auth/login`: valida usuario y contraseña y devuelve un JWT con vencimiento de 8 horas.
+- Las rutas de gestión requieren `Authorization: Bearer <JWT>`. La verificación de Meta para webhooks y `GET /api/health` permanecen públicas; los webhooks POST siguen validados por su firma HMAC.
+- `GET /api/users`, `POST /api/users`, `PUT /api/users/:id` y `DELETE /api/users/:id`: administración de usuarios autenticados. El usuario principal no se puede eliminar; su protección también se valida en la API.
 - `GET /api/whatsapp/statuses`: últimos 100 estados de mensajes recibidos de Meta, incluidos errores de entrega.
 - `GET /api/clients`: clientes activos y estado agregado de avisos.
 - `POST /api/clients` y `PUT /api/clients/:id`: alta y edición de clientes.
@@ -27,7 +31,7 @@ El dump no contiene clientes ni plantillas de ejemplo. Los archivos `src/mockDat
 - `GET /api/settings` y `PUT /api/settings`: parámetros del sistema.
 - `GET /api/templates`, `POST /api/templates`, `PUT /api/templates/:id` y `PATCH /api/templates/:id/active`: gestión de plantillas.
 
-Las consultas usan parámetros y la API valida las entradas. Las credenciales se leen desde `.env`, ignorado por Git; no las agregues al repositorio.
+Las consultas usan parámetros y la API valida las entradas con Zod. Las contraseñas se guardan con bcrypt y los JWT se firman usando `JWT_SECRET`; las credenciales de infraestructura se leen desde `.env`, ignorado por Git. No agregues secretos al repositorio.
 
 ### Prueba de WhatsApp
 
@@ -58,7 +62,7 @@ El archivo `render.yaml` configura un único Web Service para servir el frontend
 
 El envío automático queda habilitado por `WHATSAPP_AUTOMATED_SENDING_ENABLED` y usa `PLANTILLA_WHATSAPP` y `silos_1.jpg` para cada cliente activo con un aviso pendiente cuya fecha programada ya llegó, según los ajustes guardados en la base. Si el servicio estuvo inactivo, al iniciar recupera los avisos vencidos que sigan pendientes. El administrador recibe un mensaje de resumen cuando el cliente responde `Quiero saber más`, no al enviar la plantilla principal. Un Render Free puede dormir y ejecutar al despertar, por lo que no garantiza el minuto exacto de las 09:00.
 
-Render ejecuta `npm run migrate` antes de iniciar la API en cada deploy. El runner aplica en orden las migraciones pendientes de `db/migrations` y registra cada una en `schema_migrations`; no hay que agregar nuevos archivos manualmente al runner. Si una migración aparece aplicada solo en parte, el proceso se detiene e indica que hay que revisar el esquema antes de volver a desplegar. El servicio API no incluye autenticación de administrador. Antes de usar datos reales en un servicio público, agrega autenticación o protege el acceso mediante un proxy de identidad.
+Render ejecuta `npm run migrate` antes de iniciar la API en cada deploy. El runner aplica en orden las migraciones pendientes de `db/migrations` y registra cada una en `schema_migrations`; no hay que agregar nuevos archivos manualmente al runner. Si una migración aparece aplicada solo en parte, el proceso se detiene e indica que hay que revisar el esquema antes de volver a desplegar. Configura `JWT_SECRET` como variable secreta persistente en Render, diferente entre entornos, y actualiza la contraseña inicial desde Ajustes antes de habilitar el acceso público.
 
 La API debe estar ejecutándose en el servidor que corresponde al dominio público. Para una prueba local se necesita un túnel HTTPS, por ejemplo Cloudflare Tunnel o ngrok; la URL resultante debe conservar el sufijo `/api/webhooks/whatsapp`.
 

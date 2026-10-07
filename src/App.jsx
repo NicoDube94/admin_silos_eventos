@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Clock3,
   LayoutDashboard,
+  LockKeyhole,
+  LogOut,
   Menu,
   MessageSquareText,
   Pencil,
@@ -24,7 +26,7 @@ import {
 import initialClients from './mockData.json'
 import initialSettings from './mockSettings.json'
 import SettingsPanel from './components/SettingsPanel.jsx'
-import { api } from './services/api.js'
+import { api, clearAuthToken, getAuthToken, saveAuthToken } from './services/api.js'
 import './App.css'
 
 const dateFormatter = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' })
@@ -209,11 +211,53 @@ function BirthdayCalendar({ clients, onAddClient }) {
   )
 }
 
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+
+  async function submitLogin(event) {
+    event.preventDefault()
+    if (pending) return
+    setPending(true)
+    setError('')
+    try {
+      await onLogin({ username, password })
+    } catch (loginError) {
+      setError(loginError.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <main className="login-screen">
+      <section className="login-card">
+        <span className="login-icon"><LockKeyhole size={22} /></span>
+        <div className="section-kicker">SILOS EVENTOS</div>
+        <h1>Iniciar sesión</h1>
+        <p>Ingresa tus credenciales para acceder al panel de administración.</p>
+        <form onSubmit={submitLogin}>
+          <label className="form-field"><span>Nombre de usuario</span><input autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required autoFocus /></label>
+          <label className="form-field"><span>Contraseña</span><input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          {error && <p className="login-error" role="alert">{error}</p>}
+          <button className="primary-button" type="submit" disabled={pending}>{pending ? 'Ingresando…' : 'Ingresar'}</button>
+        </form>
+      </section>
+    </main>
+  )
+}
+
 function App() {
   const [clients, setClients] = useState(initialClients)
   const [settings, setSettings] = useState(initialSettings.configuracion)
   const [templates, setTemplates] = useState(initialSettings.plantillas)
   const [notifications, setNotifications] = useState([])
+  const [users, setUsers] = useState([])
+  const [authToken, setAuthToken] = useState(getAuthToken)
+  const [authUser, setAuthUser] = useState(null)
+  const [authReady, setAuthReady] = useState(() => !getAuthToken())
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('todos')
   const [activeView, setActiveView] = useState('dashboard')
@@ -232,6 +276,37 @@ function App() {
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState(getSavedDismissedNotifications)
   const [readNotificationIds, setReadNotificationIds] = useState(getSavedReadNotifications)
   const notificationMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!authToken) return undefined
+    let cancelled = false
+    api.session()
+      .then(({ user }) => {
+        if (cancelled) return
+        setAuthUser(user)
+        setAuthReady(true)
+      })
+      .catch(() => {
+        if (cancelled) return
+        clearAuthToken()
+        setAuthToken(null)
+        setAuthUser(null)
+        setAuthReady(true)
+      })
+    return () => { cancelled = true }
+  }, [authToken])
+
+  useEffect(() => {
+    function expireSession() {
+      clearAuthToken()
+      setAuthToken(null)
+      setAuthUser(null)
+      setAuthReady(true)
+      setUsers([])
+    }
+    window.addEventListener('auth:unauthorized', expireSession)
+    return () => window.removeEventListener('auth:unauthorized', expireSession)
+  }, [])
 
   useEffect(() => {
     try {
@@ -264,16 +339,18 @@ function App() {
   }, [notificationsOpen])
 
   useEffect(() => {
+    if (!authToken || !authReady) return undefined
     let cancelled = false
 
     async function loadData() {
       try {
-        const [, nextClients, nextSettings, nextTemplates, nextNotifications] = await Promise.all([
+        const [, nextClients, nextSettings, nextTemplates, nextNotifications, nextUsers] = await Promise.all([
           api.health(),
           api.clients(),
           api.settings(),
           api.templates(),
           api.notifications(),
+          api.users(),
         ])
         if (cancelled) return
         setClients(nextClients)
@@ -281,6 +358,7 @@ function App() {
         setTheme(nextSettings.tema || getSavedTheme())
         setTemplates(nextTemplates)
         setNotifications(nextNotifications)
+        setUsers(nextUsers)
         setConnectionError('')
         setConnectionState('connected')
       } catch (error) {
@@ -292,10 +370,10 @@ function App() {
 
     void loadData()
     return () => { cancelled = true }
-  }, [reloadKey])
+  }, [authReady, authToken, reloadKey])
 
   useEffect(() => {
-    if (connectionState !== 'connected') return undefined
+    if (!authToken || connectionState !== 'connected') return undefined
 
     const intervalId = window.setInterval(async () => {
       if (document.visibilityState !== 'visible') return
@@ -307,7 +385,7 @@ function App() {
     }, 60000)
 
     return () => window.clearInterval(intervalId)
-  }, [connectionState])
+  }, [authToken, connectionState])
 
   useEffect(() => {
     if (activeView !== 'dashboard' || filter !== 'pendientes') return undefined
@@ -555,6 +633,48 @@ function App() {
     }
   }
 
+  async function login(credentials) {
+    const result = await api.login(credentials)
+    saveAuthToken(result.token)
+    setAuthUser(result.user)
+    setAuthToken(result.token)
+    setAuthReady(true)
+    setConnectionState('connecting')
+  }
+
+  function logout() {
+    clearAuthToken()
+    setAuthToken(null)
+    setAuthUser(null)
+    setAuthReady(true)
+    setUsers([])
+    setNotificationsOpen(false)
+  }
+
+  async function createAdminUser(user) {
+    const created = await api.createUser(user)
+    setUsers((current) => [...current, created])
+    return created
+  }
+
+  async function updateAdminUser(id, user) {
+    const updated = await api.updateUser(id, user)
+    setUsers((current) => current.map((item) => item.id === updated.id ? updated : item))
+    if (authUser?.id === updated.id) setAuthUser(updated)
+    return updated
+  }
+
+  async function deleteAdminUser(user) {
+    const deleted = await api.deleteUser(user.id)
+    setUsers((current) => current.filter((item) => item.id !== deleted.id))
+    return deleted
+  }
+
+  if (!authReady) {
+    return <main className="login-screen"><p className="login-loading" role="status">Verificando sesión…</p></main>
+  }
+  if (!authToken) return <LoginScreen onLogin={login} />
+
   return (
     <div className="app-shell" id="overview" data-theme={theme}>
       <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-open' : ''} ${sidebarVisible ? '' : 'sidebar-hidden'}`}>
@@ -589,7 +709,8 @@ function App() {
               {notificationsOpen && <NotificationsPanel notifications={visibleNotifications} onDismiss={dismissNotification} onClose={() => setNotificationsOpen(false)} />}
             </div>
             <button className="icon-button settings-button" type="button" title="Ajustes" aria-label="Abrir ajustes" onClick={openSettings}><Settings size={18} /></button>
-            <span className="topbar-avatar">SE</span>
+            <span className="topbar-avatar" title={authUser?.username}>{authUser?.username.slice(0, 2).toUpperCase() || 'SE'}</span>
+            <button className="icon-button logout-button" type="button" title="Cerrar sesión" aria-label={`Cerrar sesión de ${authUser?.username || 'usuario'}`} onClick={logout}><LogOut size={17} /></button>
           </div>
         </header>
 
@@ -618,6 +739,11 @@ function App() {
             onToast={setToast}
             theme={theme}
             onThemeChange={saveTheme}
+            users={users}
+            currentUserId={authUser?.id}
+            onCreateUser={createAdminUser}
+            onUpdateUser={updateAdminUser}
+            onDeleteUser={deleteAdminUser}
           />
         ) : activeView === 'birthdays' ? (
           <BirthdayCalendar clients={activeClients} onAddClient={openCreateModal} />

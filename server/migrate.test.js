@@ -20,7 +20,7 @@ function createDatabase({ applied = [], schemaState = () => 0 } = {}) {
         recordedMigrations.add(values[0])
         return [{ affectedRows: 1 }, []]
       }
-      if (/^(ALTER TABLE|UPDATE|CREATE INDEX|CREATE TABLE IF NOT EXISTS whatsapp_)/.test(sql.trim())) {
+      if (/^(ALTER TABLE|UPDATE|CREATE INDEX|CREATE TABLE IF NOT EXISTS (?:whatsapp_|usuarios_admin)|INSERT IGNORE INTO usuarios_admin)/.test(sql.trim())) {
         migrationStatements.push(sql.trim())
       }
       return [[], []]
@@ -33,10 +33,11 @@ test('applies all numbered migrations in order and skips them on subsequent runs
 
   await applyMigrations(database)
 
-  assert.equal(database.recordedMigrations.size, 8)
-  assert.equal(database.migrationStatements.length, 21)
+  assert.equal(database.recordedMigrations.size, 9)
+  assert.equal(database.migrationStatements.length, 23)
   assert.match(database.migrationStatements[0], /^ALTER TABLE historial_notificaciones/)
-  assert.match(database.migrationStatements.at(-1), /^CREATE TABLE IF NOT EXISTS whatsapp_manual_followups/)
+  assert.match(database.migrationStatements.at(-2), /^CREATE TABLE IF NOT EXISTS usuarios_admin/)
+  assert.match(database.migrationStatements.at(-1), /^INSERT IGNORE INTO usuarios_admin/)
 
   const firstRunStatementCount = database.migrationStatements.length
   await applyMigrations(database)
@@ -48,7 +49,7 @@ test('records migrations whose schema changes are already present', async () => 
 
   await applyMigrations(database)
 
-  assert.equal(database.recordedMigrations.size, 8)
+  assert.equal(database.recordedMigrations.size, 9)
   assert.deepEqual(database.migrationStatements, [])
 })
 

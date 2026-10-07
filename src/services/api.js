@@ -1,10 +1,30 @@
+const authTokenStorageKey = 'silos-eventos-auth-token'
+
+export function getAuthToken() {
+  try {
+    return window.localStorage.getItem(authTokenStorageKey)
+  } catch {
+    return null
+  }
+}
+
+export function saveAuthToken(token) {
+  window.localStorage.setItem(authTokenStorageKey, token)
+}
+
+export function clearAuthToken() {
+  window.localStorage.removeItem(authTokenStorageKey)
+}
+
 async function request(path, options = {}) {
   let response
   try {
+    const token = getAuthToken()
     response = await fetch(`/api${path}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(token && path !== '/auth/login' ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
     })
@@ -19,7 +39,14 @@ async function request(path, options = {}) {
     throw new Error('La API devolvió una respuesta no válida.')
   }
 
-  if (!response.ok) throw new Error(body.error || `Error HTTP ${response.status}`)
+  if (!response.ok) {
+    if (response.status === 401 && path !== '/auth/login') {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+    }
+    const error = new Error(body.error || `Error HTTP ${response.status}`)
+    error.status = response.status
+    throw error
+  }
   return body
 }
 
@@ -28,9 +55,15 @@ function jsonBody(value) {
 }
 
 export const api = {
+  login: (credentials) => request('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
+  session: () => request('/auth/session'),
   health: () => request('/health'),
   clients: () => request('/clients'),
   notifications: () => request('/notifications'),
+  users: () => request('/users'),
+  createUser: (user) => request('/users', { method: 'POST', body: JSON.stringify(user) }),
+  updateUser: (id, user) => request(`/users/${id}`, jsonBody(user)),
+  deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
   createClient: (client) => request('/clients', { method: 'POST', body: JSON.stringify(client) }),
   updateClient: (id, client) => request(`/clients/${id}`, { ...jsonBody(client), method: 'PUT' }),
   deactivateClient: (id) => request(`/clients/${id}/deactivate`, { method: 'PATCH' }),

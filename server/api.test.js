@@ -18,21 +18,31 @@ test('health and data routes report missing database configuration', async () =>
     assert.deepEqual(await healthResponse.json(), { status: 'disconnected', configured: false })
 
     const clientsResponse = await fetch(`${baseUrl}/api/clients`)
-    assert.equal(clientsResponse.status, 503)
-    assert.match((await clientsResponse.json()).error, /faltan credenciales DB_\*/)
+    assert.equal(clientsResponse.status, 401)
+    assert.match((await clientsResponse.json()).error, /sesión/i)
 
     const notificationsResponse = await fetch(`${baseUrl}/api/notifications`)
-    assert.equal(notificationsResponse.status, 503)
+    assert.equal(notificationsResponse.status, 401)
+
+    const sessionResponse = await fetch(`${baseUrl}/api/auth/session`)
+    assert.equal(sessionResponse.status, 401)
+
+    const loginResponse = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'Mariano_1', password: 'admin123#' }),
+    })
+    assert.equal(loginResponse.status, 503)
 
     const themeResponse = await fetch(`${baseUrl}/api/settings/theme`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tema: 'dark' }),
     })
-    assert.equal(themeResponse.status, 503)
+    assert.equal(themeResponse.status, 401)
 
     const missingRoute = await fetch(`${baseUrl}/api/missing`)
-    assert.equal(missingRoute.status, 404)
+    assert.equal(missingRoute.status, 401)
   } finally {
     server.close()
     await once(server, 'close')

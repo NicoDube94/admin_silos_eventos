@@ -15,17 +15,20 @@
     "build": "vite build",
     "migrate": "node server/migrate.js",
     "lint": "oxlint",
-    "test": "node --test server/api.test.js server/notificationSchedule.test.js server/notificationEngine.test.js server/notificationSender.test.js server/validation.test.js server/whatsapp.test.js server/whatsappWebhook.test.js server/templateService.test.js server/manualMessage.test.js server/migrate.test.js",
+    "test": "node --test server/api.test.js server/auth.test.js server/notificationSchedule.test.js server/notificationEngine.test.js server/notificationSender.test.js server/validation.test.js server/whatsapp.test.js server/whatsappWebhook.test.js server/templateService.test.js server/manualMessage.test.js server/migrate.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.48.0",
     "mysql2": "^3.24.4",
     "node-cron": "^4.6.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@ngrok/ngrok": "^1.7.0",

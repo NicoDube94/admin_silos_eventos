@@ -8,6 +8,14 @@ import { sendWhatsAppTemplate, sendWhatsAppText } from './whatsapp.js'
 import { handleWhatsAppWebhook, verifyWebhookSignature } from './whatsappWebhook.js'
 import { sendManualWhatsAppMessage } from './manualMessage.js'
 import { deleteTemplate, saveTemplate as saveTemplateRecord, setTemplateActive } from './templateService.js'
+import {
+  createAuthMiddleware,
+  createUser,
+  deleteUser,
+  listUsers,
+  loginUser,
+  updateUser,
+} from './auth.js'
 
 const app = express()
 const frontendDirectory = fileURLToPath(new URL('../dist/', import.meta.url))
@@ -143,6 +151,42 @@ app.post('/api/webhooks/whatsapp', asyncRoute(async (request, response) => {
   }
   const results = await handleWhatsAppWebhook(request.body, requireDatabase())
   response.json({ received: true, results })
+}))
+
+app.post('/api/auth/login', asyncRoute(async (request, response) => {
+  response.json(await loginUser(requireDatabase(), request.body))
+}))
+
+app.use('/api', createAuthMiddleware(requireDatabase))
+
+app.get('/api/auth/session', (request, response) => {
+  response.json({ user: request.authUser })
+})
+
+app.get('/api/users', asyncRoute(async (_request, response) => {
+  response.json(await listUsers(requireDatabase()))
+}))
+
+app.post('/api/users', asyncRoute(async (request, response) => {
+  try {
+    response.status(201).json(await createUser(requireDatabase(), request.body))
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') throw new ApiError(409, 'Ese nombre de usuario ya está en uso.')
+    throw error
+  }
+}))
+
+app.put('/api/users/:id', asyncRoute(async (request, response) => {
+  try {
+    response.json(await updateUser(requireDatabase(), parseId(request.params.id), request.body))
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') throw new ApiError(409, 'Ese nombre de usuario ya está en uso.')
+    throw error
+  }
+}))
+
+app.delete('/api/users/:id', asyncRoute(async (request, response) => {
+  response.json(await deleteUser(requireDatabase(), parseId(request.params.id)))
 }))
 
 app.get('/api/clients', asyncRoute(async (request, response) => {
