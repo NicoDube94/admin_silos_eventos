@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowDownUp,
   Bell,
@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Search,
   Settings,
+  Trash2,
   UserRoundX,
   UsersRound,
   X,
@@ -28,6 +29,7 @@ import './App.css'
 
 const dateFormatter = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' })
 const notificationDateFormatter = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
+const dismissedNotificationsStorageKey = 'silos-eventos-dismissed-notifications'
 
 function getBirthdayDetails(dateString) {
   const [, month, day] = dateString.split('-').map(Number)
@@ -51,6 +53,21 @@ function getInitials(name) {
 function formatNotificationDate(value) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? value : notificationDateFormatter.format(date)
+}
+
+function getSavedDismissedNotifications() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(dismissedNotificationsStorageKey) || '[]')
+    return new Set(Array.isArray(saved) ? saved.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function formatNotificationMessage(notification) {
+  return (notification.cuerpoMensaje || 'No hay contenido de plantilla guardado para este aviso.')
+    .replaceAll('{{nombre_tutor}}', notification.tutor)
+    .replaceAll('{{nombre_cumpleanero}}', notification.cumpleanero)
 }
 
 function getSavedTheme() {
@@ -202,6 +219,8 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useState(true)
   const [theme, setTheme] = useState(getSavedTheme)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState(getSavedDismissedNotifications)
+  const notificationMenuRef = useRef(null)
 
   useEffect(() => {
     try {
@@ -216,6 +235,22 @@ function App() {
     const timeoutId = window.setTimeout(() => setToast(''), 2800)
     return () => window.clearTimeout(timeoutId)
   }, [toast])
+
+  useEffect(() => {
+    if (!notificationsOpen) return undefined
+    function closeOnOutsideClick(event) {
+      if (!notificationMenuRef.current?.contains(event.target)) setNotificationsOpen(false)
+    }
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setNotificationsOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [notificationsOpen])
 
   useEffect(() => {
     let cancelled = false
@@ -278,6 +313,9 @@ function App() {
     const matchesFilter = filter === 'todos' || client.avisos.some((status) => status === 'pendiente')
     return matchesSearch && matchesFilter
   })
+  const visibleNotifications = notifications.filter(
+    (notification) => !dismissedNotificationIds.has(String(notification.id)),
+  )
   const monthCounts = Array.from({ length: 6 }, (_, index) => {
     const month = (new Date().getMonth() + index) % 12
     return {
@@ -315,6 +353,16 @@ function App() {
     } catch (error) {
       setToast(`No se pudieron cargar los avisos: ${error.message}`)
     }
+  }
+
+  function dismissNotification(notificationId) {
+    const dismissedIds = new Set(dismissedNotificationIds).add(String(notificationId))
+    try {
+      window.localStorage.setItem(dismissedNotificationsStorageKey, JSON.stringify([...dismissedIds]))
+    } catch {
+      setToast('No se pudo guardar la lista de avisos descartados en este navegador.')
+    }
+    setDismissedNotificationIds(dismissedIds)
   }
 
   function openSettings() {
@@ -489,11 +537,11 @@ function App() {
           <div className="breadcrumb"><span>Gestión</span><span className="breadcrumb-divider">/</span><strong>{viewTitles[activeView]}</strong></div>
           <div className="topbar-actions">
             <span className="current-date">{new Intl.DateTimeFormat('es-AR', { dateStyle: 'full' }).format(new Date())}</span>
-            <div className="notification-menu">
-              <button className="icon-button notification-button" type="button" title="Avisos enviados" aria-label={notifications.length ? `${notifications.length} avisos enviados` : 'Ver avisos enviados'} aria-expanded={notificationsOpen} onClick={toggleNotifications}>
-                <Bell size={18} />{notifications.length > 0 && <span className="notification-dot" />}
+            <div className="notification-menu" ref={notificationMenuRef}>
+              <button className="icon-button notification-button" type="button" title="Avisos enviados" aria-label={visibleNotifications.length ? `${visibleNotifications.length} avisos enviados` : 'Ver avisos enviados'} aria-expanded={notificationsOpen} onClick={toggleNotifications}>
+                <Bell size={18} />{visibleNotifications.length > 0 && <span className="notification-dot" />}
               </button>
-              {notificationsOpen && <NotificationsPanel notifications={notifications} onClose={() => setNotificationsOpen(false)} />}
+              {notificationsOpen && <NotificationsPanel notifications={visibleNotifications} onDismiss={dismissNotification} onClose={() => setNotificationsOpen(false)} />}
             </div>
             <button className="icon-button settings-button" type="button" title="Ajustes" aria-label="Abrir ajustes" onClick={openSettings}><Settings size={18} /></button>
             <span className="topbar-avatar">SE</span>
@@ -670,7 +718,7 @@ function DeactivateClientModal({ client, pending, onClose, onConfirm }) {
   )
 }
 
-function NotificationsPanel({ notifications, onClose }) {
+function NotificationsPanel({ notifications, onDismiss, onClose }) {
   return (
     <section className="notification-panel" role="dialog" aria-labelledby="notifications-title">
       <header className="notification-panel-header">
@@ -685,11 +733,14 @@ function NotificationsPanel({ notifications, onClose }) {
             <article className="notification-entry" key={notification.id}>
               <div className="notification-entry-topline">
                 <span className="notification-type">Aviso {notification.numeroAviso}</span>
-                <time dateTime={notification.fechaEnvio}>{formatNotificationDate(notification.fechaEnvio)}</time>
+                <div className="notification-entry-actions">
+                  <time dateTime={notification.fechaEnvio}>{formatNotificationDate(notification.fechaEnvio)}</time>
+                  <button className="icon-button notification-dismiss-button" type="button" aria-label={`Quitar aviso ${notification.numeroAviso} de ${notification.cumpleanero}`} title="Quitar de la lista" onClick={() => onDismiss(notification.id)}><Trash2 size={14} /></button>
+                </div>
               </div>
               <div className="notification-recipient"><strong>{notification.cumpleanero}</strong><span>Para {notification.tutor}</span></div>
               <div className="notification-template"><MessageSquareText size={13} /><span>{notification.nombrePlantilla}</span></div>
-              <p>{notification.cuerpoMensaje || 'No hay contenido de plantilla guardado para este aviso.'}</p>
+              <p>{formatNotificationMessage(notification)}</p>
             </article>
           ))}
         </div>

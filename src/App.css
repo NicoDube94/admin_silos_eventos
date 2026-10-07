@@ -328,6 +328,8 @@
 .notification-entry-topline,
 .notification-recipient { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
+.notification-entry-actions { display: flex; align-items: center; gap: 5px; }
+.notification-dismiss-button { width: 25px; height: 25px; flex: 0 0 auto; }
 .notification-type { flex: 0 0 auto; padding: 4px 6px; color: #526e57; background: #edf3eb; border-radius: 4px; font-size: 0.75em; font-weight: 700; }
 .notification-entry time { color: #879189; font-size: 0.75em; text-align: right; }
 .notification-recipient { justify-content: flex-start; margin-top: 9px; }
@@ -1909,6 +1911,8 @@
 .app-shell[data-theme='dark'] .notification-entry p,
 .app-shell[data-theme='dark'] .notification-empty { color: #a9b5ab; }
 .app-shell[data-theme='dark'] .notification-template { color: #bdd0be; }
+.app-shell[data-theme='dark'] .notification-dismiss-button { color: #a9b5ab; }
+.app-shell[data-theme='dark'] .notification-dismiss-button:hover { color: #e0e8e2; background: #35433b; }
 .app-shell[data-theme='dark'] .notification-dot { border-color: #202a25; }
 
 @media (max-width: 640px) {
