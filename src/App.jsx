@@ -30,6 +30,7 @@ import './App.css'
 const dateFormatter = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' })
 const notificationDateFormatter = new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' })
 const dismissedNotificationsStorageKey = 'silos-eventos-dismissed-notifications'
+const readNotificationsStorageKey = 'silos-eventos-read-notifications'
 
 function getBirthdayDetails(dateString) {
   const [, month, day] = dateString.split('-').map(Number)
@@ -58,6 +59,15 @@ function formatNotificationDate(value) {
 function getSavedDismissedNotifications() {
   try {
     const saved = JSON.parse(window.localStorage.getItem(dismissedNotificationsStorageKey) || '[]')
+    return new Set(Array.isArray(saved) ? saved.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function getSavedReadNotifications() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(readNotificationsStorageKey) || '[]')
     return new Set(Array.isArray(saved) ? saved.map(String) : [])
   } catch {
     return new Set()
@@ -220,6 +230,7 @@ function App() {
   const [theme, setTheme] = useState(getSavedTheme)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [dismissedNotificationIds, setDismissedNotificationIds] = useState(getSavedDismissedNotifications)
+  const [readNotificationIds, setReadNotificationIds] = useState(getSavedReadNotifications)
   const notificationMenuRef = useRef(null)
 
   useEffect(() => {
@@ -284,6 +295,21 @@ function App() {
   }, [reloadKey])
 
   useEffect(() => {
+    if (connectionState !== 'connected') return undefined
+
+    const intervalId = window.setInterval(async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        setNotifications(await api.notifications())
+      } catch (error) {
+        setToast(`No se pudieron actualizar los avisos: ${error.message}`)
+      }
+    }, 60000)
+
+    return () => window.clearInterval(intervalId)
+  }, [connectionState])
+
+  useEffect(() => {
     if (activeView !== 'dashboard' || filter !== 'pendientes') return undefined
     const frameId = window.requestAnimationFrame(() => {
       document.getElementById('clients')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -316,6 +342,9 @@ function App() {
   const visibleNotifications = notifications.filter(
     (notification) => !dismissedNotificationIds.has(String(notification.id)),
   )
+  const hasUnreadNotifications = visibleNotifications.some(
+    (notification) => !readNotificationIds.has(String(notification.id)),
+  )
   const monthCounts = Array.from({ length: 6 }, (_, index) => {
     const month = (new Date().getMonth() + index) % 12
     return {
@@ -343,13 +372,29 @@ function App() {
     setModalOpen(true)
   }
 
+  function markNotificationsRead(items) {
+    const readIds = new Set(readNotificationIds)
+    items.forEach((notification) => readIds.add(String(notification.id)))
+    try {
+      window.localStorage.setItem(readNotificationsStorageKey, JSON.stringify([...readIds]))
+    } catch {
+      setToast('No se pudo guardar el estado de lectura de los avisos en este navegador.')
+    }
+    setReadNotificationIds(readIds)
+  }
+
   async function toggleNotifications() {
     const opening = !notificationsOpen
     setNotificationsOpen(opening)
     if (!opening) return
+    markNotificationsRead(visibleNotifications)
 
     try {
-      setNotifications(await api.notifications())
+      const updatedNotifications = await api.notifications()
+      setNotifications(updatedNotifications)
+      markNotificationsRead(updatedNotifications.filter(
+        (notification) => !dismissedNotificationIds.has(String(notification.id)),
+      ))
     } catch (error) {
       setToast(`No se pudieron cargar los avisos: ${error.message}`)
     }
@@ -539,7 +584,7 @@ function App() {
             <span className="current-date">{new Intl.DateTimeFormat('es-AR', { dateStyle: 'full' }).format(new Date())}</span>
             <div className="notification-menu" ref={notificationMenuRef}>
               <button className="icon-button notification-button" type="button" title="Avisos enviados" aria-label={visibleNotifications.length ? `${visibleNotifications.length} avisos enviados` : 'Ver avisos enviados'} aria-expanded={notificationsOpen} onClick={toggleNotifications}>
-                <Bell size={18} />{visibleNotifications.length > 0 && <span className="notification-dot" />}
+                <Bell size={18} />{hasUnreadNotifications && <span className="notification-dot" />}
               </button>
               {notificationsOpen && <NotificationsPanel notifications={visibleNotifications} onDismiss={dismissNotification} onClose={() => setNotificationsOpen(false)} />}
             </div>
