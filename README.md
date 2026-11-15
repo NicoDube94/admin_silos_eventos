@@ -24,7 +24,7 @@ El dump no contiene clientes ni plantillas de ejemplo. Los archivos `src/mockDat
 - `POST /api/auth/login`: valida usuario y contraseña y devuelve un JWT con vencimiento de 8 horas.
 - `GET /api/auth/theme`: tema claro/oscuro guardado para que la pantalla de login lo muestre antes de autenticar.
 - Las rutas de gestión requieren `Authorization: Bearer <JWT>`. La verificación de Meta para webhooks y `GET /api/health` permanecen públicas; los webhooks POST siguen validados por su firma HMAC.
-- `GET /api/users`, `POST /api/users`, `PUT /api/users/:id` y `DELETE /api/users/:id`: administración de usuarios autenticados. El usuario principal no se puede eliminar; su protección también se valida en la API.
+- `GET /api/users`, `POST /api/users`, `PUT /api/users/:id` y `DELETE /api/users/:id`: administración de usuarios autenticados. La cuenta reservada de mantenimiento puede iniciar sesión, pero no aparece en el listado ni se puede modificar o eliminar desde la aplicación. El usuario principal tampoco se puede eliminar; su protección también se valida en la API.
 - `GET /api/whatsapp/statuses`: últimos 100 estados de mensajes recibidos de Meta, incluidos errores de entrega.
 - `GET /api/clients`: clientes activos y estado agregado de avisos.
 - `POST /api/clients` y `PUT /api/clients/:id`: alta y edición de clientes.
@@ -67,14 +67,6 @@ Render ejecuta `npm run migrate` antes de iniciar la API en cada deploy. El runn
 
 La API debe estar ejecutándose en el servidor que corresponde al dominio público. Para una prueba local se necesita un túnel HTTPS, por ejemplo Cloudflare Tunnel o ngrok; la URL resultante debe conservar el sufijo `/api/webhooks/whatsapp`.
 
-Para usar ngrok en desarrollo:
-
-1. Crea un authtoken en el dashboard de ngrok y agrega `NGROK_AUTHTOKEN` a `.env`.
-2. En una terminal inicia la API con `npm run api`.
-3. En otra terminal ejecuta `npm run tunnel`.
-4. Copia la URL que imprime el comando, agregando `/api/webhooks/whatsapp`, en la configuración del webhook de Meta.
-
-El dominio gratuito de ngrok puede cambiar cada vez que se reinicia el túnel; actualiza la URL en Meta cuando cambie.
 
 ## Verificación
 

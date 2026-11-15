@@ -726,7 +726,7 @@ function App() {
               {notificationsOpen && <NotificationsPanel notifications={visibleNotifications} onDismiss={dismissNotification} onClose={() => setNotificationsOpen(false)} />}
             </div>
             <button className="icon-button settings-button" type="button" title="Ajustes" aria-label="Abrir ajustes" onClick={openSettings}><Settings size={18} /></button>
-            <span className="topbar-avatar" title={authUser?.username}>{authUser?.username.slice(0, 2).toUpperCase() || 'SE'}</span>
+            <span className="topbar-avatar" title={authUser?.username || 'Cuenta de administración'}>{authUser?.username?.slice(0, 2).toUpperCase() || 'SE'}</span>
             <button className="icon-button logout-button" type="button" title="Cerrar sesión" aria-label={`Cerrar sesión de ${authUser?.username || 'usuario'}`} onClick={logout}><LogOut size={17} /></button>
           </div>
         </header>

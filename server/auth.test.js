@@ -5,6 +5,7 @@ import {
   createAuthMiddleware,
   createUser,
   deleteUser,
+  listUsers,
   loginUser,
   updateUser,
 } from './auth.js'
@@ -49,6 +50,58 @@ test('authenticates the seeded admin with bcrypt and signs an expiring JWT', asy
   })
 })
 
+test('maintenance user can log in but is hidden and protected from user management', async () => {
+  await withJwtSecret(async () => {
+    const maintenanceDatabase = {
+      async execute(query) {
+        assert.match(query, /FROM usuarios_admin/)
+        return [[{
+          id: 8,
+          username: 'nico_admin',
+          password_hash: seedHash,
+          is_principal: 0,
+        }]]
+      },
+    }
+
+    const result = await loginUser(maintenanceDatabase, {
+      username: 'nico_admin',
+      password: 'admin123#',
+    })
+    assert.deepEqual(result.user, { id: 8, username: null, isPrincipal: false })
+    assert.equal(jwt.verify(result.token, process.env.JWT_SECRET).username, undefined)
+
+    const listDatabase = {
+      async execute() {
+        return [[
+          { id: 8, username: 'nico_admin', is_principal: 0 },
+          { id: 9, username: 'operador', is_principal: 0 },
+        ]]
+      },
+    }
+    assert.deepEqual(await listUsers(listDatabase), [
+      { id: 9, username: 'operador', isPrincipal: false },
+    ])
+
+    const protectedDatabase = {
+      async execute() {
+        return [[{ id: 8, username: 'nico_admin', is_principal: 0 }]]
+      },
+    }
+    await assert.rejects(
+      updateUser(protectedDatabase, 8, { username: 'nuevo_nombre', password: '' }),
+      { status: 409 },
+    )
+    await assert.rejects(deleteUser(protectedDatabase, 8), { status: 409 })
+
+    const unusedDatabase = { execute: async () => { throw new Error('No debe consultar la base') } }
+    await assert.rejects(
+      createUser(unusedDatabase, { username: 'NICO_ADMIN', password: 'clave-segura-1' }),
+      { status: 409 },
+    )
+  })
+})
+
 test('auth middleware rejects invalid tokens and verifies the account still exists', async () => {
   await withJwtSecret(async () => {
     const middleware = createAuthMiddleware(() => ({
@@ -81,7 +134,13 @@ test('creates and edits users with hashed passwords, and protects the principal 
     async execute(query, values) {
       statements.push({ query, values })
       if (query.startsWith('INSERT INTO usuarios_admin')) return [{ insertId: 2 }]
-      if (query.startsWith('SELECT id, is_principal')) return [[{ id: values[0], is_principal: values[0] === 1 ? 1 : 0 }]]
+      if (query.startsWith('SELECT id, username, is_principal')) {
+        return [[{
+          id: values[0],
+          username: values[0] === 1 ? 'Mariano_1' : 'operador',
+          is_principal: values[0] === 1 ? 1 : 0,
+        }]]
+      }
       if (query.startsWith('SELECT COUNT(*)')) return [[{ total: 2 }]]
       return [{ affectedRows: 1 }]
     },
